@@ -3,13 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-<title>Whale Shark Jack</title>
+<title>Baby Jack Adventures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
   width: 100%; height: 100%; overflow: hidden;
   background: #0B4A6F; touch-action: none;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Fredoka', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 #game-canvas { width: 100%; height: 100%; display: block; }
 
@@ -51,12 +54,29 @@ html, body {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   z-index: 20; pointer-events: all;
 }
-#title-screen h1 {
-  font-size: 36px; color: #FFD700; text-shadow: 0 0 30px rgba(255,200,50,0.5);
-  margin-bottom: 8px; letter-spacing: 3px;
+#title-logo {
+  width: 90%; max-width: 33vw; margin-bottom: 12px;
+  filter: drop-shadow(0 0 20px rgba(255,200,50,0.4));
+}
+#logo-wrap {
+  position: relative; display: inline-block;
+  animation: logoBob 3s ease-in-out infinite;
+}
+@keyframes logoBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+#logo-caustic {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; mix-blend-mode: overlay; opacity: 0.3;
+  background: transparent;
+}
+@keyframes causticShift {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
 }
 #title-screen h2 {
-  font-size: 16px; color: rgba(255,255,255,0.5); font-weight: normal;
+  font-size: 16px; color: rgba(255,255,255,0.6); font-weight: normal;
   margin-bottom: 60px; font-style: italic;
 }
 #title-screen .start-btn {
@@ -81,6 +101,7 @@ html, body {
   background: rgba(0, 10, 30, 0.85);
 }
 #death-screen.sarah-found { background: rgba(10, 20, 40, 0.8); }
+.death-logo { width: 45%; max-width: 200px; margin-bottom: 16px; opacity: 0.8; }
 #death-screen h2 {
   font-size: 28px; color: #ff6666; margin-bottom: 8px;
 }
@@ -180,8 +201,10 @@ html, body {
 
 <!-- Title Screen -->
 <div id="title-screen">
-  <h1>WHALE SHARK JACK</h1>
-  <h2>He is searching for Sarah.</h2>
+  <div id="logo-wrap">
+    <img id="title-logo" src="logo.png" alt="Baby Jack Adventures">
+    <canvas id="logo-caustic"></canvas>
+  </div>
   <button class="start-btn" id="start-btn">SWIM</button>
   <div class="instructions">
     Swipe left / right to change lanes<br>
@@ -191,6 +214,7 @@ html, body {
 
 <!-- Death Screen -->
 <div id="death-screen">
+  <img class="death-logo" src="logo.png" alt="Baby Jack Adventures">
   <h2 id="death-title">Jack is lost.</h2>
   <div class="death-subtitle" id="death-subtitle"></div>
   <div class="stat-row"><span>Score</span><span class="stat-value" id="death-score">0</span></div>
@@ -320,12 +344,12 @@ scene.add(ambientLight);
 
 // Main sun — warm white-blue from above-right (hero image sun rays)
 const dirLight = new THREE.DirectionalLight(0xA8E0FF, 1.4);
-dirLight.position.set(2, 15, 5);
+dirLight.position.set(5, 8, 3); // lower and to the side — rakes across sand
 scene.add(dirLight);
 
 // Warm golden sun fill — simulates the warm light shafts in the hero image
 const sunFill = new THREE.DirectionalLight(0xFFE8B0, 0.5);
-sunFill.position.set(3, 20, -2);
+sunFill.position.set(-4, 6, -5); // opposite side, also low — catches ripples
 scene.add(sunFill);
 
 const rimLight = new THREE.DirectionalLight(0x5599BB, 0.4);
@@ -403,7 +427,7 @@ const CAUSTICS_FRAGMENT_UNIFORMS = `
 const CAUSTICS_FRAGMENT_CODE = `
   vec3 wPos = vWorldPosition;
   // Scroll drives Z, time adds gentle X shimmer only
-  float scrollZ = wPos.z + uScrollZ;
+  float scrollZ = wPos.z - uScrollZ;
   float s1 = uCausticScale;
   float s2 = uCausticScale * 0.75;
   float s3 = uCausticScale * 0.85;
@@ -625,13 +649,113 @@ function applyJackTexture() {
 }
 
 // ─────────────────────────────────────────────
-// OCEAN FLOOR — with shader caustics baked in
+// OCEAN FLOOR — subdivided with sand ripples + vertex displacement
 // ─────────────────────────────────────────────
+
+// 1. Procedural sand ripple normal map
+const SAND_TEX_SIZE = 512;
+const sandNormCanvas = document.createElement('canvas');
+sandNormCanvas.width = SAND_TEX_SIZE;
+sandNormCanvas.height = SAND_TEX_SIZE;
+const sandCtx = sandNormCanvas.getContext('2d');
+
+function generateSandNormalMap() {
+  const W = SAND_TEX_SIZE, H = SAND_TEX_SIZE;
+  const imgData = sandCtx.createImageData(W, H);
+  const d = imgData.data;
+
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      const u = px / W, v = py / H;
+
+      // Horizontal sand ripples — multiple interfering waves at different angles
+      // v is the swim direction (200 units), u is across the lane (30 units)
+      // All waves primarily run along v with slight u angles for interference
+      // Wave 1: main horizontal ripples, ~8 visible, slight leftward lean
+      const r1 = Math.sin((v * 8 + u * 1.5) * Math.PI * 2) * 0.4;
+      // Wave 2: broader, angled the other way — creates diamond interference
+      const r2 = Math.sin((v * 5 - u * 2.0) * Math.PI * 2) * 0.3;
+      // Wave 3: very broad, almost horizontal — modulates the amplitude
+      const r3 = Math.sin((v * 3 + u * 0.5) * Math.PI * 2) * 0.2;
+      // Wave 4: cross-wave at steep angle — breaks up the regularity
+      const r4 = Math.sin((v * 2 + u * 4) * Math.PI * 2) * 0.1;
+      const noise = (Math.sin(px * 127.1 + py * 311.7) * 43758.5453 % 1) * 0.04;
+
+      const height = r1 + r2 + r3 + r4 + noise;
+
+      const u2 = (px + 1) / W, v2 = (py + 1) / H;
+      const hx = Math.sin((v * 8 + u2 * 1.5) * Math.PI * 2) * 0.4
+               + Math.sin((v * 5 - u2 * 2.0) * Math.PI * 2) * 0.3
+               + Math.sin((v * 3 + u2 * 0.5) * Math.PI * 2) * 0.2
+               + Math.sin((v * 2 + u2 * 4) * Math.PI * 2) * 0.1;
+      const hy = Math.sin((v2 * 8 + u * 1.5) * Math.PI * 2) * 0.4
+               + Math.sin((v2 * 5 - u * 2.0) * Math.PI * 2) * 0.3
+               + Math.sin((v2 * 3 + u * 0.5) * Math.PI * 2) * 0.2
+               + Math.sin((v2 * 2 + u * 4) * Math.PI * 2) * 0.1;
+
+      const dx = (hx - height) * 7.0; // cranked way up
+      const dy = (hy - height) * 7.0;
+
+      const len = Math.sqrt(dx * dx + dy * dy + 1);
+      const idx = (py * W + px) * 4;
+      d[idx]     = Math.floor((-dx / len * 0.5 + 0.5) * 255);
+      d[idx + 1] = Math.floor((-dy / len * 0.5 + 0.5) * 255);
+      d[idx + 2] = Math.floor((1.0 / len * 0.5 + 0.5) * 255);
+      d[idx + 3] = 255;
+    }
+  }
+  sandCtx.putImageData(imgData, 0, 0);
+}
+generateSandNormalMap();
+
+const sandNormalTex = new THREE.CanvasTexture(sandNormCanvas);
+sandNormalTex.wrapS = THREE.RepeatWrapping;
+sandNormalTex.wrapT = THREE.RepeatWrapping;
+
+// Sand colour map — yellow peaks, light brown troughs
+const sandColCanvas = document.createElement('canvas');
+sandColCanvas.width = SAND_TEX_SIZE;
+sandColCanvas.height = SAND_TEX_SIZE;
+{
+  const ctx = sandColCanvas.getContext('2d');
+  const W = SAND_TEX_SIZE, H = SAND_TEX_SIZE;
+  const imgData = ctx.createImageData(W, H);
+  const d = imgData.data;
+  // Light tan (troughs): rgb(215, 195, 155)
+  // Warm yellow (peaks):  rgb(250, 238, 175)
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      const u = px / W, v = py / H;
+      // Match normal map frequencies — horizontal interfering waves
+      const r1 = Math.sin((v * 8 + u * 1.5) * Math.PI * 2) * 0.4;
+      const r2 = Math.sin((v * 5 - u * 2.0) * Math.PI * 2) * 0.3;
+      const r3 = Math.sin((v * 3 + u * 0.5) * Math.PI * 2) * 0.2;
+      const noise = (Math.sin(px * 127.1 + py * 311.7) * 43758.5453 % 1) * 0.06;
+      const h = (r1 + r2 + r3 + noise + 0.5); // 0–1 range
+      const t = Math.max(0, Math.min(1, h));
+      const idx = (py * W + px) * 4;
+      d[idx]     = Math.floor(215 + t * 35);  // R: 215→250
+      d[idx + 1] = Math.floor(195 + t * 43);  // G: 195→238
+      d[idx + 2] = Math.floor(155 + t * 20);  // B: 155→175
+      d[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+const sandColTex = new THREE.CanvasTexture(sandColCanvas);
+sandColTex.wrapS = THREE.RepeatWrapping;
+sandColTex.wrapT = THREE.RepeatWrapping;
+
+// 2. Simple floor — normal map only, no vertex displacement
 const floorGeo = new THREE.PlaneGeometry(30, 200, 1, 1);
 const floorMat = new THREE.MeshStandardMaterial({
-  color: 0xE8D5A8, roughness: 0.9, metalness: 0.0,
+  map: sandColTex,
+  roughness: 0.85, metalness: 0.0,
+  normalMap: sandNormalTex,
+  normalScale: new THREE.Vector2(3.5, 3.5),
 });
-patchSceneMaterialWithCaustics(floorMat, 0.55); // stronger on the sandy floor
+patchSceneMaterialWithCaustics(floorMat, 0.55);
+
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = -1.5;
@@ -1179,8 +1303,8 @@ let boneHead = null;
 let bonePecLeft = null;
 let bonePecRight = null;
 let pecEatWiggle = 0; // countdown timer for krill-eat fin flap
-let tailSwingImpulse = 0; // direction: -1 = swing left, +1 = swing right
-let tailSwingTimer = 0;   // decays over ~0.35s
+let swimSpeedBoost = 0;   // extra swim speed on lane change, decays to 0
+let swimPhase = 0;        // accumulated swim phase — avoids jumps when speed changes
 let prevTargetLane = 1;   // track lane changes
 
 // Procedural sine-wave animation
@@ -1191,26 +1315,22 @@ function animateJack(time, dt) {
     // Subtle whole-model bob
     jack.position.y = Math.sin(t * 1.3) * 0.05 + 0.2;
 
-    // Bone-based swimming — rotate around Z for side-to-side sway
+    // ── Swim speed boost on lane change ──
+    if (swimSpeedBoost > 0) {
+      swimSpeedBoost = Math.max(0, swimSpeedBoost - dt * 1.5);
+    }
+    const swimSpeed = 1.0 + swimSpeedBoost * 3.0;
+    swimPhase += dt * 2.5 * swimSpeed;
+
+    // Bone-based swimming — normal sine-wave, faster burst on lane change
     if (boneBody) {
-      boneBody.rotation.z = Math.sin(t) * 0.25;
+      boneBody.rotation.z = Math.sin(swimPhase) * 0.25;
     }
     if (boneTail) {
-      // Tail trails the body — negative phase offset so it follows, not leads
-      let tailZ = Math.sin(t - 0.8) * 0.45;
-      // Lane-change power swing — tail whips away from new lane direction
-      if (tailSwingTimer > 0) {
-        tailSwingTimer = Math.max(0, tailSwingTimer - dt);
-        const swingProgress = tailSwingTimer / 0.35; // 1→0
-        // Quick snap then ease out: strong initial push, decaying
-        const swingAmount = tailSwingImpulse * -1.1 * Math.pow(swingProgress, 0.5);
-        tailZ += swingAmount;
-      }
-      boneTail.rotation.z = tailZ;
+      boneTail.rotation.z = Math.sin(swimPhase - 0.8) * 0.45;
     }
     if (boneHead) {
-      // Head counter-sways slightly for realism
-      boneHead.rotation.z = Math.sin(t - 0.3) * -0.06;
+      boneHead.rotation.z = Math.sin(swimPhase - 0.3) * -0.06;
     }
     // Pectoral fins — gentle idle + quick eat wiggle
     // Decay eat wiggle timer
@@ -2012,8 +2132,8 @@ function resetGame() {
   nextKrillSpawn = 1;
   nextPredatorSpawn = 10;
   lastPredatorName = '';
-  tailSwingTimer = 0;
-  tailSwingImpulse = 0;
+  swimSpeedBoost = 0;
+  swimPhase = 0;
   pecEatWiggle = 0;
   prevTargetLane = 1;
   jackCausticsUniforms.uScrollZ.value = 0;
@@ -2107,6 +2227,99 @@ document.getElementById('dbg-caustic-strength').addEventListener('input', (e) =>
   const v = parseFloat(e.target.value);
   jackCausticsUniforms.uCausticStrength.value = v;
   document.getElementById('dbg-cstr-val').textContent = v.toFixed(2);
+});
+
+// ─── Sand Debug Controls ───
+const sandParams = { scale: 1.0, angle: 0.0, strength: 3.5 };
+const sandDebug = document.createElement('div');
+sandDebug.style.cssText = 'margin-top:6px;border-top:1px solid #0f03;padding-top:4px;';
+sandDebug.innerHTML = `
+<div style="color:#0f0;font:bold 11px monospace;margin-bottom:3px;">── Sand ──</div>
+<label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
+  UV Scale: <span id="dbg-sand-scale">1.00</span>
+  <input type="range" id="dbg-sand-scale-r" min="0.1" max="5.0" step="0.1" value="1.0"
+    style="width:120px;vertical-align:middle;accent-color:#0f0;">
+</label>
+<label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
+  Angle: <span id="dbg-sand-angle">0</span>°
+  <input type="range" id="dbg-sand-angle-r" min="-90" max="90" step="5" value="0"
+    style="width:120px;vertical-align:middle;accent-color:#0f0;">
+</label>
+<label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
+  Normal Strength: <span id="dbg-sand-str">3.50</span>
+  <input type="range" id="dbg-sand-str-r" min="0.5" max="10.0" step="0.5" value="3.5"
+    style="width:120px;vertical-align:middle;accent-color:#0f0;">
+</label>
+`;
+debugHud.appendChild(sandDebug);
+
+function _regenerateSand() {
+  // Regenerate normal map with current params
+  const W = SAND_TEX_SIZE, H = SAND_TEX_SIZE;
+  const imgData = sandCtx.createImageData(W, H);
+  const d = imgData.data;
+  const a = sandParams.angle * Math.PI / 180;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const sc = sandParams.scale;
+
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      const u = px / W, v = py / H;
+      // Rotate UV by angle
+      const ru = (u - 0.5) * ca - (v - 0.5) * sa + 0.5;
+      const rv = (u - 0.5) * sa + (v - 0.5) * ca + 0.5;
+      // Scale
+      const su = ru * sc, sv = rv * sc;
+      // Interfering waves
+      const r1 = Math.sin((sv * 8 + su * 1.5) * Math.PI * 2) * 0.4;
+      const r2 = Math.sin((sv * 5 - su * 2.0) * Math.PI * 2) * 0.3;
+      const r3 = Math.sin((sv * 3 + su * 0.5) * Math.PI * 2) * 0.2;
+      const r4 = Math.sin((sv * 2 + su * 4) * Math.PI * 2) * 0.1;
+      const noise = (Math.sin(px * 127.1 + py * 311.7) * 43758.5453 % 1) * 0.04;
+      const height = r1 + r2 + r3 + r4 + noise;
+
+      const u2 = (px + 1) / W, v2 = (py + 1) / H;
+      const ru2 = (u2 - 0.5) * ca - (v - 0.5) * sa + 0.5;
+      const rv2 = (u - 0.5) * sa + (v2 - 0.5) * ca + 0.5;
+      const su2 = ru2 * sc, sv2 = rv2 * sc;
+      const hx = Math.sin((sv * 8 + su2 * 1.5) * Math.PI * 2) * 0.4
+               + Math.sin((sv * 5 - su2 * 2.0) * Math.PI * 2) * 0.3
+               + Math.sin((sv * 3 + su2 * 0.5) * Math.PI * 2) * 0.2
+               + Math.sin((sv * 2 + su2 * 4) * Math.PI * 2) * 0.1;
+      const hy = Math.sin((sv2 * 8 + su * 1.5) * Math.PI * 2) * 0.4
+               + Math.sin((sv2 * 5 - su * 2.0) * Math.PI * 2) * 0.3
+               + Math.sin((sv2 * 3 + su * 0.5) * Math.PI * 2) * 0.2
+               + Math.sin((sv2 * 2 + su * 4) * Math.PI * 2) * 0.1;
+
+      const dx = (hx - height) * 7.0;
+      const dy = (hy - height) * 7.0;
+      const len = Math.sqrt(dx * dx + dy * dy + 1);
+      const idx = (py * W + px) * 4;
+      d[idx]     = Math.floor((-dx / len * 0.5 + 0.5) * 255);
+      d[idx + 1] = Math.floor((-dy / len * 0.5 + 0.5) * 255);
+      d[idx + 2] = Math.floor((1.0 / len * 0.5 + 0.5) * 255);
+      d[idx + 3] = 255;
+    }
+  }
+  sandCtx.putImageData(imgData, 0, 0);
+  sandNormalTex.needsUpdate = true;
+  floorMat.normalScale.set(sandParams.strength, sandParams.strength);
+}
+
+document.getElementById('dbg-sand-scale-r').addEventListener('input', (e) => {
+  sandParams.scale = parseFloat(e.target.value);
+  document.getElementById('dbg-sand-scale').textContent = sandParams.scale.toFixed(2);
+  _regenerateSand();
+});
+document.getElementById('dbg-sand-angle-r').addEventListener('input', (e) => {
+  sandParams.angle = parseFloat(e.target.value);
+  document.getElementById('dbg-sand-angle').textContent = Math.round(sandParams.angle);
+  _regenerateSand();
+});
+document.getElementById('dbg-sand-str-r').addEventListener('input', (e) => {
+  sandParams.strength = parseFloat(e.target.value);
+  document.getElementById('dbg-sand-str').textContent = sandParams.strength.toFixed(2);
+  floorMat.normalScale.set(sandParams.strength, sandParams.strength);
 });
 
 // ─── Jack Texture Debug Controls ───
@@ -2365,8 +2578,7 @@ canvas.addEventListener('touchend', (e) => {
     if (dx < 0 && state.targetLane > 0) state.targetLane--;
     if (dx > 0 && state.targetLane < 2) state.targetLane++;
     if (state.targetLane !== oldLane) {
-      tailSwingImpulse = state.targetLane > oldLane ? 1 : -1;
-      tailSwingTimer = 0.35;
+      swimSpeedBoost = 1.0;
     }
   }
 }, { passive: false });
@@ -2377,6 +2589,19 @@ document.addEventListener('keydown', (e) => {
     toggleDebug();
     return;
   }
+  // Spacebar starts/restarts from title or death screen
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (document.getElementById('title-screen').style.display !== 'none') {
+      document.getElementById('title-screen').style.display = 'none';
+      resetGame();
+      return;
+    }
+    if (state.dead) {
+      resetGame();
+      return;
+    }
+  }
   if (!state.playing) return;
   const oldLane = state.targetLane;
   if (e.key === 'ArrowLeft' || e.key === 'a') {
@@ -2386,8 +2611,7 @@ document.addEventListener('keydown', (e) => {
     if (state.targetLane < 2) state.targetLane++;
   }
   if (state.targetLane !== oldLane) {
-    tailSwingImpulse = state.targetLane > oldLane ? 1 : -1;
-    tailSwingTimer = 0.35;
+    swimSpeedBoost = 1.0;
   }
 });
 
@@ -2426,6 +2650,76 @@ document.getElementById('restart-btn').addEventListener('click', () => {
 });
 
 // ─────────────────────────────────────────────
+// LOGO CAUSTIC OVERLAY — 2D canvas on the title logo
+// ─────────────────────────────────────────────
+const logoCausticCanvas = document.getElementById('logo-caustic');
+const logoCausticCtx = logoCausticCanvas.getContext('2d');
+const LOGO_C_SIZE = 128;
+// Generate a small caustic source tile
+const logoCausticSrc = document.createElement('canvas');
+logoCausticSrc.width = logoCausticSrc.height = LOGO_C_SIZE;
+{
+  const ctx = logoCausticSrc.getContext('2d');
+  const pts = [];
+  for (let i = 0; i < 20; i++) pts.push({ x: Math.random() * LOGO_C_SIZE, y: Math.random() * LOGO_C_SIZE });
+  const imgData = ctx.createImageData(LOGO_C_SIZE, LOGO_C_SIZE);
+  for (let py = 0; py < LOGO_C_SIZE; py++) {
+    for (let px = 0; px < LOGO_C_SIZE; px++) {
+      let d1 = Infinity, d2 = Infinity;
+      for (const p of pts) {
+        let dx = Math.abs(px - p.x); if (dx > LOGO_C_SIZE/2) dx = LOGO_C_SIZE - dx;
+        let dy = Math.abs(py - p.y); if (dy > LOGO_C_SIZE/2) dy = LOGO_C_SIZE - dy;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < d1) { d2 = d1; d1 = dist; } else if (dist < d2) d2 = dist;
+      }
+      let b = Math.max(0, 1 - (d2 - d1) / 8);
+      b = Math.pow(b, 1.5);
+      const idx = (py * LOGO_C_SIZE + px) * 4;
+      imgData.data[idx] = imgData.data[idx+1] = imgData.data[idx+2] = Math.floor(b * 255);
+      imgData.data[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+  ctx.filter = 'blur(1px)'; ctx.drawImage(logoCausticSrc, 0, 0); ctx.filter = 'none';
+}
+
+function updateLogoCaustic(elapsed) {
+  const logo = document.getElementById('title-logo');
+  if (!logo || !logoCausticCanvas.parentElement) return;
+  // Size canvas to match logo
+  const w = logo.offsetWidth, h = logo.offsetHeight;
+  if (w === 0) return;
+  logoCausticCanvas.width = w;
+  logoCausticCanvas.height = h;
+  const ctx = logoCausticCtx;
+  ctx.clearRect(0, 0, w, h);
+  // Draw scrolling tiled caustic
+  const ox = (elapsed * 15) % LOGO_C_SIZE;
+  const oy = (elapsed * 10) % LOGO_C_SIZE;
+  ctx.globalAlpha = 0.25;
+  ctx.globalCompositeOperation = 'lighter';
+  for (let tx = -LOGO_C_SIZE; tx < w + LOGO_C_SIZE; tx += LOGO_C_SIZE) {
+    for (let ty = -LOGO_C_SIZE; ty < h + LOGO_C_SIZE; ty += LOGO_C_SIZE) {
+      ctx.drawImage(logoCausticSrc, tx + ox, ty + oy);
+    }
+  }
+  // Second layer, different speed/direction
+  const ox2 = (elapsed * -8) % LOGO_C_SIZE;
+  const oy2 = (elapsed * 12) % LOGO_C_SIZE;
+  ctx.globalAlpha = 0.15;
+  for (let tx = -LOGO_C_SIZE; tx < w + LOGO_C_SIZE; tx += LOGO_C_SIZE) {
+    for (let ty = -LOGO_C_SIZE; ty < h + LOGO_C_SIZE; ty += LOGO_C_SIZE) {
+      ctx.drawImage(logoCausticSrc, tx + ox2, ty + oy2);
+    }
+  }
+  // Mask caustic to logo shape — only show where logo has opaque pixels
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.globalAlpha = 1.0;
+  ctx.drawImage(logo, 0, 0, w, h);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// ─────────────────────────────────────────────
 // MAIN GAME LOOP
 // ─────────────────────────────────────────────
 const clock = new THREE.Clock();
@@ -2436,6 +2730,9 @@ function update(time) {
 
   const dt = Math.min(clock.getDelta(), 0.05);
   const elapsed = clock.getElapsedTime();
+
+  // Animate logo caustic on title screen
+  updateLogoCaustic(elapsed);
 
   // Drive the shared caustics time uniform (used by all patched materials)
   jackCausticsUniforms.uTime.value = elapsed;
@@ -2539,6 +2836,10 @@ function update(time) {
 
   // Drive caustics scroll so they move with the ground
   jackCausticsUniforms.uScrollZ.value += scrollDelta;
+
+  // Scroll sand maps with the world
+  sandNormalTex.offset.y += scrollDelta * 0.005;
+  sandColTex.offset.y += scrollDelta * 0.005;
 
   // Canyon walls: scroll all slabs, leapfrog when a slab passes screen bottom
   borderGroups.forEach(group => {
