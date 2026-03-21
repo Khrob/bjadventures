@@ -55,7 +55,7 @@ html, body {
   z-index: 20; pointer-events: all;
 }
 #title-logo {
-  width: 90%; max-width: 33vw; margin-bottom: 12px;
+  width: 90%; max-width: 50vw; margin-bottom: 12px;
   filter: drop-shadow(0 0 20px rgba(255,200,50,0.4));
 }
 #logo-wrap {
@@ -101,7 +101,7 @@ html, body {
   background: rgba(0, 10, 30, 0.85);
 }
 #death-screen.sarah-found { background: rgba(10, 20, 40, 0.8); }
-.death-logo { width: 45%; max-width: 200px; margin-bottom: 16px; opacity: 0.8; }
+.death-logo { width: 60%; max-width: 400px; margin-bottom: 16px; opacity: 0.8; }
 #death-screen h2 {
   font-size: 28px; color: #ff6666; margin-bottom: 8px;
 }
@@ -495,11 +495,11 @@ jackTexture.wrapT = THREE.RepeatWrapping;
 
 // Tuneable parameters (exposed to debug sliders)
 const jackTexParams = {
-  baseR: 85, baseG: 160, baseB: 175,     // bright teal-blue (matches hero)
+  baseR: 7, baseG: 31, baseB: 80,        // deep blue base
   spotR: 240, spotG: 250, spotB: 245,    // cool white spots
-  spotRadius: 8,                          // spot size in px
+  spotRadius: 3,                          // spot size in px
   spotSoftness: 3,                        // feather around spot
-  minDist: 22,                            // Poisson min distance
+  minDist: 10,                            // Poisson min distance
   numCandidates: 30,                      // Poisson k param
   bellyR: 230, bellyG: 240, bellyB: 242, // bright white belly
   bellyBlend: 0.45,                       // stronger belly gradient
@@ -677,21 +677,15 @@ function generateSandNormalMap() {
       const r2 = Math.sin((v * 5 - u * 2.0) * Math.PI * 2) * 0.3;
       // Wave 3: very broad, almost horizontal — modulates the amplitude
       const r3 = Math.sin((v * 3 + u * 0.5) * Math.PI * 2) * 0.2;
-      // Wave 4: cross-wave at steep angle — breaks up the regularity
-      const r4 = Math.sin((v * 2 + u * 4) * Math.PI * 2) * 0.1;
-      const noise = (Math.sin(px * 127.1 + py * 311.7) * 43758.5453 % 1) * 0.04;
-
-      const height = r1 + r2 + r3 + r4 + noise;
+      const height = r1 + r2 + r3;
 
       const u2 = (px + 1) / W, v2 = (py + 1) / H;
       const hx = Math.sin((v * 8 + u2 * 1.5) * Math.PI * 2) * 0.4
                + Math.sin((v * 5 - u2 * 2.0) * Math.PI * 2) * 0.3
-               + Math.sin((v * 3 + u2 * 0.5) * Math.PI * 2) * 0.2
-               + Math.sin((v * 2 + u2 * 4) * Math.PI * 2) * 0.1;
+               + Math.sin((v * 3 + u2 * 0.5) * Math.PI * 2) * 0.2;
       const hy = Math.sin((v2 * 8 + u * 1.5) * Math.PI * 2) * 0.4
                + Math.sin((v2 * 5 - u * 2.0) * Math.PI * 2) * 0.3
-               + Math.sin((v2 * 3 + u * 0.5) * Math.PI * 2) * 0.2
-               + Math.sin((v2 * 2 + u * 4) * Math.PI * 2) * 0.1;
+               + Math.sin((v2 * 3 + u * 0.5) * Math.PI * 2) * 0.2;
 
       const dx = (hx - height) * 7.0; // cranked way up
       const dy = (hy - height) * 7.0;
@@ -730,8 +724,7 @@ sandColCanvas.height = SAND_TEX_SIZE;
       const r1 = Math.sin((v * 8 + u * 1.5) * Math.PI * 2) * 0.4;
       const r2 = Math.sin((v * 5 - u * 2.0) * Math.PI * 2) * 0.3;
       const r3 = Math.sin((v * 3 + u * 0.5) * Math.PI * 2) * 0.2;
-      const noise = (Math.sin(px * 127.1 + py * 311.7) * 43758.5453 % 1) * 0.06;
-      const h = (r1 + r2 + r3 + noise + 0.5); // 0–1 range
+      const h = (r1 + r2 + r3 + 0.5); // 0–1 range
       const t = Math.max(0, Math.min(1, h));
       const idx = (py * W + px) * 4;
       d[idx]     = Math.floor(215 + t * 35);  // R: 215→250
@@ -752,7 +745,7 @@ const floorMat = new THREE.MeshStandardMaterial({
   map: sandColTex,
   roughness: 0.85, metalness: 0.0,
   normalMap: sandNormalTex,
-  normalScale: new THREE.Vector2(3.5, 3.5),
+  normalScale: new THREE.Vector2(6.0, 6.0),
 });
 patchSceneMaterialWithCaustics(floorMat, 0.55);
 
@@ -2230,14 +2223,14 @@ document.getElementById('dbg-caustic-strength').addEventListener('input', (e) =>
 });
 
 // ─── Sand Debug Controls ───
-const sandParams = { scale: 1.0, angle: 0.0, strength: 3.5 };
+const sandParams = { scale: 2.2, angle: 0.0, strength: 6.0 };
 const sandDebug = document.createElement('div');
 sandDebug.style.cssText = 'margin-top:6px;border-top:1px solid #0f03;padding-top:4px;';
 sandDebug.innerHTML = `
 <div style="color:#0f0;font:bold 11px monospace;margin-bottom:3px;">── Sand ──</div>
 <label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
-  UV Scale: <span id="dbg-sand-scale">1.00</span>
-  <input type="range" id="dbg-sand-scale-r" min="0.1" max="5.0" step="0.1" value="1.0"
+  UV Scale: <span id="dbg-sand-scale">2.20</span>
+  <input type="range" id="dbg-sand-scale-r" min="0.1" max="5.0" step="0.1" value="2.2"
     style="width:120px;vertical-align:middle;accent-color:#0f0;">
 </label>
 <label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
@@ -2246,8 +2239,8 @@ sandDebug.innerHTML = `
     style="width:120px;vertical-align:middle;accent-color:#0f0;">
 </label>
 <label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
-  Normal Strength: <span id="dbg-sand-str">3.50</span>
-  <input type="range" id="dbg-sand-str-r" min="0.5" max="10.0" step="0.5" value="3.5"
+  Normal Strength: <span id="dbg-sand-str">6.00</span>
+  <input type="range" id="dbg-sand-str-r" min="0.5" max="10.0" step="0.5" value="6.0"
     style="width:120px;vertical-align:middle;accent-color:#0f0;">
 </label>
 `;
@@ -2274,9 +2267,7 @@ function _regenerateSand() {
       const r1 = Math.sin((sv * 8 + su * 1.5) * Math.PI * 2) * 0.4;
       const r2 = Math.sin((sv * 5 - su * 2.0) * Math.PI * 2) * 0.3;
       const r3 = Math.sin((sv * 3 + su * 0.5) * Math.PI * 2) * 0.2;
-      const r4 = Math.sin((sv * 2 + su * 4) * Math.PI * 2) * 0.1;
-      const noise = (Math.sin(px * 127.1 + py * 311.7) * 43758.5453 % 1) * 0.04;
-      const height = r1 + r2 + r3 + r4 + noise;
+      const height = r1 + r2 + r3;
 
       const u2 = (px + 1) / W, v2 = (py + 1) / H;
       const ru2 = (u2 - 0.5) * ca - (v - 0.5) * sa + 0.5;
@@ -2284,12 +2275,10 @@ function _regenerateSand() {
       const su2 = ru2 * sc, sv2 = rv2 * sc;
       const hx = Math.sin((sv * 8 + su2 * 1.5) * Math.PI * 2) * 0.4
                + Math.sin((sv * 5 - su2 * 2.0) * Math.PI * 2) * 0.3
-               + Math.sin((sv * 3 + su2 * 0.5) * Math.PI * 2) * 0.2
-               + Math.sin((sv * 2 + su2 * 4) * Math.PI * 2) * 0.1;
+               + Math.sin((sv * 3 + su2 * 0.5) * Math.PI * 2) * 0.2;
       const hy = Math.sin((sv2 * 8 + su * 1.5) * Math.PI * 2) * 0.4
                + Math.sin((sv2 * 5 - su * 2.0) * Math.PI * 2) * 0.3
-               + Math.sin((sv2 * 3 + su * 0.5) * Math.PI * 2) * 0.2
-               + Math.sin((sv2 * 2 + su * 4) * Math.PI * 2) * 0.1;
+               + Math.sin((sv2 * 3 + su * 0.5) * Math.PI * 2) * 0.2;
 
       const dx = (hx - height) * 7.0;
       const dy = (hy - height) * 7.0;
