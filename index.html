@@ -387,6 +387,7 @@ const jackCausticsUniforms = {
   uCausticB: { value: jackCausticB },
   uCausticStrength: { value: 0.4 },
   uCausticScale: { value: 0.18 }, // lower = bigger caustics pattern
+  uScrollZ: { value: 0 },        // accumulated world scroll — caustics move with ground
 };
 
 // Shared caustics GLSL injection — used by both Jack's and scene patchers
@@ -396,10 +397,12 @@ const CAUSTICS_FRAGMENT_UNIFORMS = `
   uniform sampler2D uCausticB;
   uniform float uCausticStrength;
   uniform float uCausticScale;
+  uniform float uScrollZ;
 `;
 
 const CAUSTICS_FRAGMENT_CODE = `
   vec3 wPos = vWorldPosition;
+  wPos.z += uScrollZ;
   float s1 = uCausticScale;
   float s2 = uCausticScale * 0.75;
   float s3 = uCausticScale * 0.85;
@@ -423,6 +426,7 @@ function _injectCausticsShader(shader, strengthOverride) {
   shader.uniforms.uCausticStrength = strengthOverride !== undefined
     ? { value: strengthOverride } : jackCausticsUniforms.uCausticStrength;
   shader.uniforms.uCausticScale = jackCausticsUniforms.uCausticScale;
+  shader.uniforms.uScrollZ = jackCausticsUniforms.uScrollZ;
 
   shader.fragmentShader = CAUSTICS_FRAGMENT_UNIFORMS + shader.fragmentShader;
   shader.fragmentShader = shader.fragmentShader.replace(
@@ -2010,6 +2014,7 @@ function resetGame() {
   tailSwingImpulse = 0;
   pecEatWiggle = 0;
   prevTargetLane = 1;
+  jackCausticsUniforms.uScrollZ.value = 0;
 
   // Reset canyon wall scroll positions (leapfrog pairs)
   for (let i = 0; i < borderGroups.length; i += 2) {
@@ -2529,6 +2534,9 @@ function update(time) {
 
   // Move objects toward Jack (world scrolls)
   const scrollDelta = state.scrollSpeed * dt;
+
+  // Drive caustics scroll so they move with the ground
+  jackCausticsUniforms.uScrollZ.value += scrollDelta;
 
   // Canyon walls: scroll all slabs, leapfrog when a slab passes screen bottom
   borderGroups.forEach(group => {
