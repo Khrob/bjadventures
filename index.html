@@ -402,14 +402,15 @@ const CAUSTICS_FRAGMENT_UNIFORMS = `
 
 const CAUSTICS_FRAGMENT_CODE = `
   vec3 wPos = vWorldPosition;
-  wPos.z += uScrollZ;
+  // Scroll drives Z, time adds gentle X shimmer only
+  float scrollZ = wPos.z + uScrollZ;
   float s1 = uCausticScale;
   float s2 = uCausticScale * 0.75;
   float s3 = uCausticScale * 0.85;
-  vec2 uvA = wPos.xz * s1 + vec2(uTime * 0.08, uTime * 0.05);
-  vec2 uvB = wPos.xz * s2 + vec2(-uTime * 0.06, uTime * 0.09);
-  vec2 uvC = vec2(wPos.x * 0.7 - wPos.z * 0.3, wPos.x * 0.3 + wPos.z * 0.7) * s3
-             + vec2(uTime * 0.04, -uTime * 0.07);
+  vec2 uvA = vec2(wPos.x * s1 + uTime * 0.06, scrollZ * s1 + uTime * 0.015);
+  vec2 uvB = vec2(wPos.x * s2 - uTime * 0.04, scrollZ * s2 - uTime * 0.01);
+  vec2 uvC = vec2((wPos.x * 0.7 - scrollZ * 0.3) * s3 + uTime * 0.03,
+                  (wPos.x * 0.3 + scrollZ * 0.7) * s3 - uTime * 0.02);
   float cA = texture2D(uCausticA, uvA).r;
   float cB = texture2D(uCausticB, uvB).r;
   float cC = texture2D(uCausticA, uvC).r;
@@ -1787,6 +1788,7 @@ function checkCollisions() {
         bloomKrillCollected++;
         if (bloomKrillCollected >= bloomKrillTarget) {
           endBloom(true);
+          break; // endBloom mutates krillItems — bail out of this loop
         }
       }
     }
