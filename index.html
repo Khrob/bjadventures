@@ -713,7 +713,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.35;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x1B8DC2, 0.022);
+scene.fog = new THREE.FogExp2(0x1B8DC2, 0.033);
 
 // Camera FOV is computed dynamically to guarantee the full lane area
 // is visible regardless of aspect ratio (portrait phones, etc.)
@@ -1442,7 +1442,7 @@ const REEF_SLAB_LEN = 80;
 const REEF_FLOOR_MIN_X = 2.8;   // just outside the lane edges
 const REEF_FLOOR_MAX_X = WALL_X_OFFSET + 20;  // way out — fills the whole visible width
 const REEF_Z_SPACING = 0.5;     // very tight along Z
-const REEF_PROPS_PER_ROW = 20;  // chockas!
+const REEF_PROPS_PER_ROW = 10;  // fewer but bigger
 
 // Coral hues for reef (warm tropical palette matching hero image)
 const REEF_CORAL_HUES = [0.95, 0.0, 0.03, 0.06, 0.08, 0.12, 0.8, 0.83];
@@ -1460,8 +1460,8 @@ function _randomiseReefProp(child) {
   child.rotation.y = Math.random() * Math.PI * 2;
   child.rotation.z = (Math.random() - 0.5) * 0.3;
 
-  // Random scale — mix of small ground cover and occasional bigger pieces
-  const baseScale = Math.random() < 0.15 ? (1.0 + Math.random() * 0.8) : (0.4 + Math.random() * 0.5);
+  // Random scale — always at least as big as lane obstacles, some much bigger
+  const baseScale = Math.random() < 0.3 ? (1.5 + Math.random() * 1.0) : (1.0 + Math.random() * 0.5);
   child.scale.set(baseScale, baseScale, baseScale);
 
   // Re-tint materials
