@@ -98,16 +98,16 @@ html, body {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   display: none; flex-direction: column; align-items: center; justify-content: center;
   z-index: 20; pointer-events: all;
-  background: rgba(0, 10, 30, 0.85);
+  background: rgba(8, 60, 100, 0.82);
 }
-#death-screen.sarah-found { background: rgba(10, 20, 40, 0.8); }
-.death-logo { width: 60%; max-width: 400px; margin-bottom: 16px; opacity: 0.8; }
+#death-screen.sarah-found { background: rgba(10, 70, 90, 0.8); }
+.death-logo { width: 60%; max-width: 400px; margin-bottom: 16px; opacity: 0.9; cursor: pointer; }
 #death-screen h2 {
-  font-size: 28px; color: #ff6666; margin-bottom: 8px;
+  font-size: 28px; color: #ffbb66; margin-bottom: 8px;
 }
 #death-screen.sarah-found h2 { color: #88ffdd; }
 #death-screen .death-subtitle {
-  font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 30px;
+  font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 30px;
   font-style: italic;
 }
 #death-screen .stat-row {
@@ -122,9 +122,32 @@ html, body {
   color: #ffcc44; font-size: 13px; margin: 4px 0;
 }
 #death-screen .restart-btn {
-  margin-top: 30px; padding: 14px 40px; font-size: 16px; color: #fff;
+  margin-top: 20px; padding: 14px 40px; font-size: 16px; color: #fff;
   background: rgba(68, 136, 255, 0.3); border: 1px solid rgba(136, 204, 255, 0.4);
   border-radius: 30px; cursor: pointer; letter-spacing: 2px;
+}
+#death-leaderboard table {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+}
+#death-leaderboard th {
+  color: rgba(255,255,255,0.4); font-weight: 500; padding: 2px 4px;
+  text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+#death-leaderboard td {
+  color: rgba(255,255,255,0.6); padding: 2px 4px;
+}
+#death-leaderboard td:nth-child(3) { text-align: right; }
+#death-leaderboard tr.you td { color: #ffcc44; font-weight: 600; }
+#death-leaderboard tr.divider td {
+  color: rgba(255,255,255,0.2); text-align: center; font-size: 9px; padding: 1px;
+}
+#death-leaderboard .lb-title {
+  color: rgba(255,255,255,0.5); font-size: 11px; text-align: center;
+  margin-bottom: 4px; letter-spacing: 1px;
+}
+#death-leaderboard .lb-best {
+  color: rgba(136,204,255,0.7); font-size: 10px; text-align: center;
+  margin-top: 4px;
 }
 
 /* Sarah Found Cutscene */
@@ -165,6 +188,83 @@ html, body {
   background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7);
 }
 #fullscreen-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+/* Audio toggle */
+#audio-btn {
+  position: absolute; top: 8px; right: 48px; z-index: 20;
+  width: 32px; height: 32px; padding: 0;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px; cursor: pointer; color: rgba(255,255,255,0.4);
+  font-size: 16px; line-height: 32px; text-align: center;
+  transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+}
+#audio-btn:hover, #audio-btn:active {
+  background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7);
+}
+
+/* High score overlay */
+#highscore-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 22; pointer-events: all;
+  background: rgba(0, 10, 30, 0.95);
+}
+#highscore-overlay.visible { display: flex; }
+#highscore-content {
+  background: rgba(0, 20, 50, 0.8); border: 1px solid rgba(136, 204, 255, 0.3);
+  border-radius: 12px; padding: 24px; max-width: 500px; width: 90%;
+  max-height: 70vh; overflow-y: auto;
+}
+#highscore-overlay h2 {
+  color: #88ccff; margin-bottom: 16px; text-align: center; font-size: 24px;
+}
+#highscore-table {
+  width: 100%; border-collapse: collapse; color: rgba(255,255,255,0.8);
+  font-size: 13px;
+}
+#highscore-table th {
+  color: #88ccff; padding: 8px 4px; border-bottom: 1px solid rgba(136, 204, 255, 0.3);
+  text-align: left; font-weight: bold;
+}
+#highscore-table td {
+  padding: 6px 4px; border-bottom: 1px solid rgba(136, 204, 255, 0.1);
+}
+#highscore-table tr:hover {
+  background: rgba(68, 136, 255, 0.1);
+}
+#highscore-close {
+  margin-top: 16px; padding: 8px 24px; font-size: 14px; color: #fff;
+  background: rgba(68, 136, 255, 0.3); border: 1px solid rgba(136, 204, 255, 0.4);
+  border-radius: 20px; cursor: pointer; width: 100%;
+}
+
+/* Promo links */
+.promo-links {
+  display: flex; justify-content: center; gap: 16px; margin-top: 24px; flex-wrap: wrap;
+}
+.promo-btn {
+  display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 20px; cursor: pointer; color: rgba(255,255,255,0.6);
+  font-size: 12px; transition: all 0.3s; text-decoration: none;
+}
+.promo-btn:hover {
+  background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.9);
+}
+.promo-btn svg {
+  width: 14px; height: 14px;
+}
+
+/* Name entry field */
+#name-entry {
+  padding: 8px 12px; font-size: 18px; font-family: inherit;
+  background: rgba(68, 136, 255, 0.2); border: 1px solid rgba(136, 204, 255, 0.4);
+  border-radius: 6px; color: #fff; text-align: center; width: 80px;
+  letter-spacing: 4px; text-transform: uppercase;
+}
+#name-entry::placeholder {
+  color: rgba(255,255,255,0.3);
+}
 
 /* Krill bloom flash */
 #bloom-indicator {
@@ -210,6 +310,17 @@ html, body {
     Swipe left / right to change lanes<br>
     Collect krill · Avoid predators · Find Sarah
   </div>
+  <button class="start-btn" id="highscores-btn" style="margin-top: 16px; padding: 12px 32px; font-size: 14px;">HIGH SCORES</button>
+  <div class="promo-links">
+    <a href="https://whalesharkjack.com" target="_blank" class="promo-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      Watch the Film
+    </a>
+    <a href="https://www.penguin.com.au/books/whale-shark-jack-9781761621420" target="_blank" class="promo-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+      Get the Book
+    </a>
+  </div>
 </div>
 
 <!-- Death Screen -->
@@ -217,11 +328,28 @@ html, body {
   <img class="death-logo" src="logo.png" alt="Baby Jack Adventures">
   <h2 id="death-title">Jack is lost.</h2>
   <div class="death-subtitle" id="death-subtitle"></div>
+  <div id="new-highscore" style="color:#ffaa44;font-size:16px;font-weight:600;margin-bottom:8px;display:none;">NEW HIGH SCORE!</div>
+  <div id="name-entry-wrap" style="display:none;margin-bottom:12px;text-align:center;">
+    <input type="text" id="name-entry" placeholder="AAA" maxlength="3">
+    <button id="submit-score-btn" style="padding:8px 20px;font-size:14px;color:#fff;background:rgba(255,170,68,0.5);border:1px solid rgba(255,200,100,0.5);border-radius:20px;cursor:pointer;font-family:inherit;margin-left:8px;letter-spacing:1px;">SAVE</button>
+  </div>
   <div class="stat-row"><span>Score</span><span class="stat-value" id="death-score">0</span></div>
   <div class="stat-row"><span>Level</span><span class="stat-value" id="death-level">1</span></div>
   <div class="stat-row"><span>Krill</span><span class="stat-value" id="death-krill">0</span></div>
   <div class="stat-row"><span>Distance</span><span class="stat-value" id="death-distance">0m</span></div>
+  <div id="rank-display" style="color:#88ccff;font-size:13px;margin-top:8px;display:none;"></div>
   <div class="goals" id="death-goals"></div>
+  <div id="death-leaderboard" style="margin-top:12px;width:80%;max-width:300px;"></div>
+  <div class="promo-links" style="margin-top: 16px;">
+    <a href="https://whalesharkjack.com" target="_blank" class="promo-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      Watch the Film
+    </a>
+    <a href="https://www.penguin.com.au/books/whale-shark-jack-9781761621420" target="_blank" class="promo-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+      Get the Book
+    </a>
+  </div>
   <button class="restart-btn" id="restart-btn">TRY AGAIN</button>
 </div>
 
@@ -246,6 +374,31 @@ html, body {
   <svg id="fs-compress" style="display:none" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
 </button>
 
+<!-- Audio toggle -->
+<button id="audio-btn" title="Toggle audio">
+  <svg id="audio-on" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.3-2.5-4.04v8.08c1.48-.74 2.5-2.27 2.5-4.04zM14 3.1v2.02c2.84.86 4.9 3.52 4.9 6.88s-2.06 6.02-4.9 6.88v2.02c4.95-.82 8.7-5.15 8.7-8.9s-3.75-8.08-8.7-8.9z"/></svg>
+  <svg id="audio-off" style="display:none" viewBox="0 0 24 24"><path d="M16.6915026,12.4744748 L21.0151688,17.1172059 L19.6147516,18.5434095 L15.2846939,13.9792041 L10.5547068,18.5434095 L9.15428954,17.1172059 L13.5847282,12.4744748 L9.15428954,7.83174377 L10.5547068,6.40553841 L15.2846939,11.0151688 L19.6147516,6.40553841 L21.0151688,7.83174377 L16.6915026,12.4744748 Z M3,9 L3,15 L7,15 L12,20 L12,4 L7,9 L3,9 Z"/></svg>
+</button>
+
+<!-- High score overlay -->
+<div id="highscore-overlay">
+  <div id="highscore-content">
+    <h2>HIGH SCORES</h2>
+    <table id="highscore-table">
+      <thead>
+        <tr>
+          <th style="width:30px">Rank</th>
+          <th style="width:60px">Name</th>
+          <th style="flex:1">Score</th>
+          <th style="width:50px">Level</th>
+        </tr>
+      </thead>
+      <tbody id="highscore-tbody"></tbody>
+    </table>
+    <button id="highscore-close" class="restart-btn">CLOSE</button>
+  </div>
+</div>
+
 <!-- Level transition -->
 <div id="level-transition"></div>
 
@@ -261,6 +414,256 @@ html, body {
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ─────────────────────────────────────────────
+// AUDIO MANAGER — Web Audio API with oscillator stubs
+// ─────────────────────────────────────────────
+class AudioManager {
+  constructor() {
+    this.audioContext = null;
+    this.masterVolume = 1.0;
+    this.sfxVolume = 0.8;
+    this.musicVolume = 0.5;
+    this.currentMusicId = null;
+    this.currentMusicGain = null;
+    this.initialized = false;
+  }
+
+  init() {
+    if (this.initialized) return;
+    // Create AudioContext on first user interaction (required by mobile)
+    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    this.initialized = true;
+    console.log('AudioManager initialized');
+  }
+
+  _createOscillator(freq, duration, type = 'sine') {
+    if (!this.audioContext) return;
+    const now = this.audioContext.currentTime;
+    const osc = this.audioContext.createOscillator();
+    const env = this.audioContext.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    env.gain.setValueAtTime(0.2, now);
+    env.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+    osc.connect(env);
+    env.connect(this.audioContext.destination);
+    osc.start(now);
+    osc.stop(now + duration);
+  }
+
+  _createNoiseBurst(duration) {
+    if (!this.audioContext) return;
+    const now = this.audioContext.currentTime;
+    const bufSize = this.audioContext.sampleRate * duration;
+    const buffer = this.audioContext.createBuffer(1, bufSize, this.audioContext.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
+    const source = this.audioContext.createBufferSource();
+    const env = this.audioContext.createGain();
+    source.buffer = buffer;
+    env.gain.setValueAtTime(0.15, now);
+    env.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+    source.connect(env);
+    env.connect(this.audioContext.destination);
+    source.start(now);
+  }
+
+  play(id) {
+    if (!this.initialized) return;
+    const v = this.sfxVolume * this.masterVolume;
+
+    switch(id) {
+      case 'lane_change':
+        this._createOscillator(400, 0.15, 'sine');
+        this._createOscillator(200, 0.15, 'sine');
+        break;
+      case 'krill_eat':
+        this._createOscillator(800, 0.1, 'sine');
+        this._createNoiseBurst(0.05);
+        break;
+      case 'krill_eat_bloom':
+        for (let i = 0; i < 3; i++) {
+          setTimeout(() => this._createOscillator(600 + i * 200, 0.05, 'sine'), i * 30);
+        }
+        break;
+      case 'coral_hit':
+        this._createOscillator(100, 0.3, 'sine');
+        this._createNoiseBurst(0.2);
+        break;
+      case 'predator_approach':
+        this._createOscillator(80, 0.5, 'sine');
+        break;
+      case 'predator_hit':
+        this._createNoiseBurst(0.15);
+        this._createOscillator(150, 0.2, 'sine');
+        break;
+      case 'bloom_trigger':
+        this._createOscillator(600, 0.8, 'sine');
+        break;
+      case 'bloom_success':
+        for (let i = 0; i < 3; i++) {
+          setTimeout(() => this._createOscillator(400 + i * 200, 0.3, 'sine'), i * 100);
+        }
+        break;
+      case 'win_state':
+        this._createOscillator(300, 1.5, 'sine');
+        this._createOscillator(500, 1.5, 'sine');
+        break;
+      case 'sarah_found':
+        for (let i = 0; i < 4; i++) {
+          setTimeout(() => this._createOscillator(400 + i * 150, 0.4, 'sine'), i * 250);
+        }
+        break;
+      case 'death':
+        this._createOscillator(200, 0.8, 'sine');
+        break;
+      case 'level_up':
+        for (let i = 0; i < 2; i++) {
+          setTimeout(() => this._createOscillator(500 + i * 200, 0.25, 'sine'), i * 150);
+        }
+        break;
+      case 'ui_click':
+        this._createNoiseBurst(0.05);
+        break;
+    }
+  }
+
+  playMusic(id) {
+    if (!this.initialized) return;
+    this.currentMusicId = id;
+  }
+
+  stopMusic() {
+    this.currentMusicId = null;
+  }
+
+  setMusicVolume(v) {
+    this.musicVolume = Math.max(0, Math.min(1, v));
+  }
+
+  setSfxVolume(v) {
+    this.sfxVolume = Math.max(0, Math.min(1, v));
+  }
+}
+
+const audioManager = new AudioManager();
+
+// ─────────────────────────────────────────────
+// HIGH SCORE MANAGER — localStorage + backend API
+// ─────────────────────────────────────────────
+class HighScoreManager {
+  constructor() {
+    this.scores = [];
+    this.playerName = localStorage.getItem('bjk_playerName') || 'AAA';
+    this.loadLocalScores();
+  }
+
+  loadLocalScores() {
+    const stored = localStorage.getItem('bjk_scores');
+    if (stored) {
+      try {
+        this.scores = JSON.parse(stored).slice(0, 20);
+      } catch (e) {
+        this.scores = [];
+      }
+    }
+  }
+
+  saveLocalScores() {
+    localStorage.setItem('bjk_scores', JSON.stringify(this.scores.slice(0, 20)));
+  }
+
+  isHighScore(score) {
+    if (this.scores.length < 20) return true;
+    return score > this.scores[this.scores.length - 1].score;
+  }
+
+  getScores() {
+    return this.scores.slice(0, 20);
+  }
+
+  async fetchServerScores() {
+    try {
+      const res = await fetch('https://api.babyjackadventures.com/scores');
+      if (res.ok) {
+        const serverScores = await res.json();
+        // Merge server scores into local, preferring higher scores
+        serverScores.forEach(s => {
+          const entry = {
+            name: s.player_name || 'AAA',
+            score: s.total_score,
+            level: s.highest_level,
+            sarah_found: s.sarah_found,
+            krill: s.krill_count,
+            distance: s.distance,
+            timestamp: s.created_at
+          };
+          // Only add if not already in local scores (dedupe by name+score)
+          const exists = this.scores.some(l => l.name === entry.name && l.score === entry.score);
+          if (!exists) this.scores.push(entry);
+        });
+        this.scores.sort((a, b) => b.score - a.score);
+        this.scores = this.scores.slice(0, 20);
+        this.saveLocalScores();
+      }
+    } catch (e) { /* server unavailable, use local only */ }
+  }
+
+  getRank(score) {
+    let rank = 1;
+    for (const s of this.scores) {
+      if (score <= s.score) rank++;
+    }
+    return Math.min(rank, 20);
+  }
+
+  submit(name, score, level, sarahFound, krill, distance) {
+    const entry = {
+      name: (name || 'AAA').toUpperCase().slice(0, 3),
+      score: Math.floor(score),
+      level,
+      sarahFound,
+      krill,
+      distance: Math.floor(distance),
+      timestamp: new Date().toISOString()
+    };
+
+    // Try server submission
+    fetch('https://api.babyjackadventures.com/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry)
+    }).catch(() => {}); // gracefully fail
+
+    // Add to local scores
+    this.scores.push(entry);
+    this.scores.sort((a, b) => b.score - a.score);
+    this.scores = this.scores.slice(0, 20);
+    this.saveLocalScores();
+
+    // Save player name
+    this.playerName = entry.name;
+    localStorage.setItem('bjk_playerName', entry.name);
+
+    return entry;
+  }
+
+  getPlayerName() {
+    return this.playerName;
+  }
+
+  setPlayerName(name) {
+    this.playerName = (name || 'AAA').toUpperCase().slice(0, 3);
+    localStorage.setItem('bjk_playerName', this.playerName);
+  }
+}
+
+const highScoreManager = new HighScoreManager();
 
 // ─────────────────────────────────────────────
 // GAME CONFIG
@@ -310,7 +713,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.35;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x0E5A8A, 0.014);
+scene.fog = new THREE.FogExp2(0x1B8DC2, 0.022);
 
 // Camera FOV is computed dynamically to guarantee the full lane area
 // is visible regardless of aspect ratio (portrait phones, etc.)
@@ -842,8 +1245,9 @@ const PROPS_NEEDED = 3;
 function onPropLoaded() {
   propsLoaded++;
   if (propsLoaded === PROPS_NEEDED) {
-    console.log('All props loaded — building borders + outer scatter');
+    console.log('All props loaded — building borders + reef floor + outer scatter');
     buildBorders();
+    buildReefFloor();
     buildOuterScatter();
   }
 }
@@ -1028,6 +1432,157 @@ for (const side of [-1, 1]) {
   scene.add(slabA);
   scene.add(slabB);
   borderGroups.push(slabA, slabB);
+}
+
+// ─────────────────────────────────────────────
+// REEF FLOOR — packed coral/rocks between lanes and walls
+// ─────────────────────────────────────────────
+const reefFloorGroups = [];
+const REEF_SLAB_LEN = 80;
+const REEF_FLOOR_MIN_X = 2.8;   // just outside the lane edges
+const REEF_FLOOR_MAX_X = WALL_X_OFFSET + 20;  // way out — fills the whole visible width
+const REEF_Z_SPACING = 0.5;     // very tight along Z
+const REEF_PROPS_PER_ROW = 20;  // chockas!
+
+// Coral hues for reef (warm tropical palette matching hero image)
+const REEF_CORAL_HUES = [0.95, 0.0, 0.03, 0.06, 0.08, 0.12, 0.8, 0.83];
+
+function _randomiseReefProp(child) {
+  // Randomise position within the reef zone
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const x = side * (REEF_FLOOR_MIN_X + Math.random() * (REEF_FLOOR_MAX_X - REEF_FLOOR_MIN_X));
+  child.position.x = x + (Math.random() - 0.5) * 0.4;
+  child.position.z = (Math.random() - 1) * REEF_SLAB_LEN; // spread across slab
+  child.position.y = -1.5;
+
+  // Random rotation
+  child.rotation.x = (Math.random() - 0.5) * 0.4;
+  child.rotation.y = Math.random() * Math.PI * 2;
+  child.rotation.z = (Math.random() - 0.5) * 0.3;
+
+  // Random scale — mix of small ground cover and occasional bigger pieces
+  const baseScale = Math.random() < 0.15 ? (1.0 + Math.random() * 0.8) : (0.4 + Math.random() * 0.5);
+  child.scale.set(baseScale, baseScale, baseScale);
+
+  // Re-tint materials
+  child.traverse(c => {
+    if (c.isMesh && c.material && c.material.color) {
+      const isCoral = Math.random() > 0.3;
+      if (isCoral) {
+        const hue = REEF_CORAL_HUES[Math.floor(Math.random() * REEF_CORAL_HUES.length)];
+        c.material.color.setHSL(
+          hue + (Math.random() - 0.5) * 0.04,
+          0.55 + Math.random() * 0.35,
+          0.45 + Math.random() * 0.2
+        );
+      } else {
+        c.material.color.setHSL(
+          0.08 + Math.random() * 0.08,
+          0.1 + Math.random() * 0.15,
+          0.3 + Math.random() * 0.15
+        );
+      }
+    }
+  });
+}
+
+function _buildReefFloorSlab() {
+  const group = new THREE.Group();
+  const totalProps = Math.ceil(REEF_SLAB_LEN / REEF_Z_SPACING) * REEF_PROPS_PER_ROW * 2; // both sides
+
+  for (let i = 0; i < totalProps; i++) {
+    const key = randomPropKey();
+    if (!key) continue;
+    const prop = cloneProp(key);
+    if (!prop) continue;
+
+    _randomiseReefProp(prop);
+    prop.userData.isReefProp = true;
+    group.add(prop);
+
+    // Shadow under ~30% of props
+    if (Math.random() < 0.3) {
+      const shadow = createShadowBlob(0.4 + Math.random() * 0.3);
+      shadow.position.set(prop.position.x, -1.48, prop.position.z);
+      group.add(shadow);
+    }
+  }
+  return group;
+}
+
+function _buildReefFloorFallbackSlab() {
+  const group = new THREE.Group();
+  const totalProps = Math.ceil(REEF_SLAB_LEN / REEF_Z_SPACING) * REEF_PROPS_PER_ROW * 2;
+
+  for (let i = 0; i < totalProps; i++) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const x = side * (REEF_FLOOR_MIN_X + Math.random() * (REEF_FLOOR_MAX_X - REEF_FLOOR_MIN_X));
+    const z = -Math.random() * REEF_SLAB_LEN;
+    const h = 0.2 + Math.random() * 0.6;
+    const isBig = Math.random() < 0.15;
+    const scale = isBig ? 1.5 : 1.0;
+
+    const geoTypes = [
+      new THREE.ConeGeometry(0.2 * scale, h * scale, 5 + Math.floor(Math.random() * 3)),
+      new THREE.DodecahedronGeometry(0.2 * scale, 0),
+      new THREE.BoxGeometry(0.25 * scale, h * scale, 0.25 * scale),
+    ];
+    const geo = geoTypes[Math.floor(Math.random() * geoTypes.length)];
+
+    const isCoral = Math.random() > 0.3;
+    const color = isCoral
+      ? new THREE.Color().setHSL(
+          REEF_CORAL_HUES[Math.floor(Math.random() * REEF_CORAL_HUES.length)],
+          0.5 + Math.random() * 0.35, 0.4 + Math.random() * 0.2)
+      : new THREE.Color().setHSL(0.08 + Math.random() * 0.08, 0.12, 0.3 + Math.random() * 0.1);
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+    patchSceneMaterialWithCaustics(mat, 0.2);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x + (Math.random() - 0.5) * 0.3, h * 0.5 * scale - 1.5, z);
+    mesh.rotation.set(Math.random() * 0.4, Math.random() * Math.PI * 2, Math.random() * 0.3);
+    group.add(mesh);
+  }
+  return group;
+}
+
+// Re-randomise all props in a reef slab (called on leapfrog wrap)
+function _reshuffleReefSlab(group) {
+  group.children.forEach(child => {
+    if (child.userData && child.userData.isReefProp) {
+      _randomiseReefProp(child);
+    }
+    // Also move shadow blobs to new random positions
+    if (child.isMesh && child.material && child.material.map === shadowTexture) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      child.position.x = side * (REEF_FLOOR_MIN_X + Math.random() * (REEF_FLOOR_MAX_X - REEF_FLOOR_MIN_X));
+      child.position.z = -Math.random() * REEF_SLAB_LEN;
+    }
+  });
+}
+
+function buildReefFloor() {
+  reefFloorGroups.forEach(g => scene.remove(g));
+  reefFloorGroups.length = 0;
+
+  const slabA = propsLoaded >= PROPS_NEEDED ? _buildReefFloorSlab() : _buildReefFloorFallbackSlab();
+  const slabB = propsLoaded >= PROPS_NEEDED ? _buildReefFloorSlab() : _buildReefFloorFallbackSlab();
+
+  slabA.position.z = 15;
+  slabB.position.z = 15 - REEF_SLAB_LEN;
+  scene.add(slabA);
+  scene.add(slabB);
+  reefFloorGroups.push(slabA, slabB);
+}
+
+// Initial fallback reef floor
+{
+  const slabA = _buildReefFloorFallbackSlab();
+  const slabB = _buildReefFloorFallbackSlab();
+  slabA.position.z = 15;
+  slabB.position.z = 15 - REEF_SLAB_LEN;
+  scene.add(slabA);
+  scene.add(slabB);
+  reefFloorGroups.push(slabA, slabB);
 }
 
 // ─────────────────────────────────────────────
@@ -1312,7 +1867,9 @@ function animateJack(time, dt) {
     if (swimSpeedBoost > 0) {
       swimSpeedBoost = Math.max(0, swimSpeedBoost - dt * 1.5);
     }
-    const swimSpeed = 1.0 + swimSpeedBoost * 3.0;
+    // Base swim rate scales with game speed so Jack looks like he's working harder
+    const gameSpeedRatio = state.scrollSpeed / CONFIG.scroll.baseSpeed; // 1.0 at level 1, grows
+    const swimSpeed = gameSpeedRatio + swimSpeedBoost * 3.0;
     swimPhase += dt * 2.5 * swimSpeed;
 
     // Bone-based swimming — normal sine-wave, faster burst on lane change
@@ -1751,6 +2308,7 @@ let bloomLight = null; // point light for bloom glow
 let bloomKrillMeshes = []; // extra krill spawned inside bloom
 
 function triggerBloom() {
+  if (audioEnabled) audioManager.play('bloom_trigger');
   bloomLane = Math.floor(Math.random() * 3);
   bloomActive = false;
   bloomWindowTimer = 6; // 6 seconds to commit to the bloom lane
@@ -1758,9 +2316,9 @@ function triggerBloom() {
 
   const bloomX = CONFIG.lanes.positions[bloomLane];
 
-  // Bloom cloud length — 3-4 screens worth (each "screen" is roughly 15 units of Z)
-  const bloomLength = 50;
-  const bloomStartZ = -60;
+  // Bloom cloud length — doubled for longer rush, starts further out
+  const bloomLength = 100;
+  const bloomStartZ = -70;
 
   // Create massive bloom particle cloud — orange-pink, dense, unmissable
   const count = 500;
@@ -1795,7 +2353,7 @@ function triggerBloom() {
   const krillMat = new THREE.MeshStandardMaterial({
     color: 0xffaa55, emissive: 0xff6622, emissiveIntensity: 0.8, roughness: 0.4
   });
-  const bloomKrillCount = 40;
+  const bloomKrillCount = 75;
   for (let i = 0; i < bloomKrillCount; i++) {
     const kGeo = new THREE.SphereGeometry(0.15, 6, 6);
     const kMesh = new THREE.Mesh(kGeo, krillMat.clone());
@@ -1816,7 +2374,7 @@ function triggerBloom() {
 function enterBloom() {
   bloomActive = true;
   state.inBloom = true;
-  bloomKrillTarget = 12 + Math.floor(state.level * 1.5);
+  bloomKrillTarget = 30 + Math.floor(state.level * 3);
   document.getElementById('bloom-indicator').textContent = 'KRILL BLOOM! EAT!';
   // Camera zoom is handled by updateCamera checking state.inBloom
 }
@@ -1843,6 +2401,7 @@ function endBloom(success) {
   document.getElementById('bloom-indicator').textContent = 'KRILL BLOOM!';
 
   if (success) {
+    if (audioEnabled) audioManager.play('bloom_success');
     state.health = Math.min(CONFIG.health.max, state.health + CONFIG.health.bloomHeal);
     state.completedBloom = true;
     triggerScreenShake(0.15);
@@ -1872,6 +2431,7 @@ function checkCollisions() {
         state.health -= CONFIG.health.collisionDamage;
         triggerScreenShake(0.3);
         obs.userData.hit = true; // mark as hit so it doesn't trigger again
+        if (audioEnabled) audioManager.play('coral_hit');
         if (debugMode) console.log(`HIT coral at z=${obs.position.z.toFixed(1)}, jack z=${jackPos.z.toFixed(1)}, gap=${gapLane}, lane=${state.targetLane}`);
       } else {
         // Successfully dodged — mark so we don't re-check
@@ -1897,6 +2457,14 @@ function checkCollisions() {
       // Trigger pec fin eat wiggle
       pecEatWiggle = 0.4; // 0.4 seconds of rapid flapping
 
+      if (audioEnabled) {
+        if (state.inBloom) {
+          audioManager.play('krill_eat_bloom');
+        } else {
+          audioManager.play('krill_eat');
+        }
+      }
+
       if (state.inBloom) {
         bloomKrillCollected++;
         if (bloomKrillCollected >= bloomKrillTarget) {
@@ -1919,6 +2487,7 @@ function checkCollisions() {
       triggerScreenShake(0.5);
       state.predatorEncounters++;
       state.consecutivePredatorDodges = 0;
+      if (audioEnabled) audioManager.play('predator_hit');
       // Remove predator after hit
       if (pred.userData.shadow) scene.remove(pred.userData.shadow);
       scene.remove(pred);
@@ -1962,6 +2531,7 @@ function checkLevelUp() {
     state.winState = false;
 
     // Show level transition
+    if (audioEnabled) audioManager.play('level_up');
     showLevelTransition(state.level);
 
     // Visual milestones
@@ -1974,7 +2544,7 @@ function checkLevelUp() {
       dirLight.intensity = 0.6;
     } else if (state.level === 11) {
       // Dawn — revert to normal daytime
-      scene.fog.color.setHex(0x0E5A8A);
+      scene.fog.color.setHex(0x1B8DC2);
       ambientLight.color.setHex(0x4A90B8);
       ambientLight.intensity = 0.7;
       dirLight.color.setHex(0xA8E0FF);
@@ -1991,6 +2561,8 @@ function updateWinState() {
   if (state.level >= CONFIG.bond.winStateMinLevel && state.bond >= 1.0) {
     state.winState = true;
     if (!wasWinState) {
+      if (audioEnabled) audioManager.play('win_state');
+      if (audioEnabled) audioManager.playMusic('music_winstate');
       document.getElementById('win-state-indicator').style.display = 'block';
       sarahBoat.visible = true;
       state.winStateCount++;
@@ -2006,8 +2578,6 @@ function updateWinState() {
 function showLevelTransition(level) {
   const el = document.getElementById('level-transition');
   let text = `LEVEL ${level}`;
-  if (level === 6) text += '\n✦ Sarah awaits ✦';
-  if (level === 10) text += '\nNight falls.';
   el.textContent = text;
   el.style.display = 'block';
   el.style.opacity = '1';
@@ -2024,10 +2594,14 @@ function triggerDeath() {
   state.playing = false;
 
   if (state.winState) {
+    if (audioEnabled) audioManager.play('sarah_found');
+    if (audioEnabled) audioManager.playMusic('music_menu');
     state.sarahFound = true;
     state.score = Math.floor(state.score * CONFIG.scoring.sarahMultiplier);
     showSarahCutscene();
   } else {
+    if (audioEnabled) audioManager.play('death');
+    if (audioEnabled) audioManager.playMusic('music_menu');
     showDeathScreen();
   }
 }
@@ -2068,6 +2642,30 @@ function showDeathScreen() {
   document.getElementById('death-krill').textContent = state.krillCount;
   document.getElementById('death-distance').textContent = Math.floor(state.distance) + 'm';
 
+  // Check for high score
+  const isHighScore = highScoreManager.isHighScore(state.score);
+  const nameWrap = document.getElementById('name-entry-wrap');
+  const nameEl = document.getElementById('name-entry');
+  const newHighEl = document.getElementById('new-highscore');
+
+  if (isHighScore) {
+    newHighEl.style.display = 'block';
+    nameWrap.style.display = 'block';
+    nameEl.value = highScoreManager.getPlayerName();
+    setTimeout(() => { nameEl.focus(); nameEl.select(); }, 100);
+    document.getElementById('rank-display').style.display = 'none';
+  } else {
+    newHighEl.style.display = 'none';
+    nameWrap.style.display = 'none';
+    const rank = highScoreManager.getRank(state.score);
+    if (rank <= 20) {
+      document.getElementById('rank-display').textContent = `Rank: #${rank}`;
+      document.getElementById('rank-display').style.display = 'block';
+    } else {
+      document.getElementById('rank-display').style.display = 'none';
+    }
+  }
+
   // Per-run goals
   const goalsEl = document.getElementById('death-goals');
   goalsEl.innerHTML = '';
@@ -2084,6 +2682,55 @@ function showDeathScreen() {
     div.textContent = '★ ' + g;
     goalsEl.appendChild(div);
   });
+
+  // Build death screen leaderboard
+  const lbEl = document.getElementById('death-leaderboard');
+  const allScores = highScoreManager.getScores();
+  const playerScore = Math.floor(state.score);
+  const playerRank = highScoreManager.getRank(playerScore);
+
+  // Find best all-time rank
+  const bestRank = parseInt(localStorage.getItem('bjk_bestRank') || '999');
+  const newBestRank = Math.min(bestRank, playerRank);
+  localStorage.setItem('bjk_bestRank', String(newBestRank));
+
+  if (allScores.length === 0) {
+    lbEl.innerHTML = '';
+  } else {
+    // Build the display: top 5, then context around player
+    const top5 = allScores.slice(0, 5);
+
+    // Find 3 above and 3 below the player's position
+    const playerIdx = Math.max(0, playerRank - 1); // 0-indexed
+    const ctxStart = Math.max(5, playerIdx - 3);
+    const ctxEnd = Math.min(allScores.length, playerIdx + 4);
+    const contextScores = allScores.slice(ctxStart, ctxEnd);
+
+    let html = '<div class="lb-title">LEADERBOARD</div>';
+    html += '<table><tr><th>#</th><th>Name</th><th>Score</th></tr>';
+
+    // Top 5
+    top5.forEach((s, i) => {
+      const isYou = (i === playerIdx && s.score === playerScore);
+      html += `<tr class="${isYou ? 'you' : ''}"><td>${i + 1}</td><td>${s.name}</td><td>${s.score.toLocaleString()}</td></tr>`;
+    });
+
+    // Divider + context (only if player is outside top 5)
+    if (playerRank > 5 && contextScores.length > 0) {
+      html += '<tr class="divider"><td colspan="3">···</td></tr>';
+      contextScores.forEach((s, i) => {
+        const rank = ctxStart + i + 1;
+        const isYou = (rank === playerRank);
+        html += `<tr class="${isYou ? 'you' : ''}"><td>${rank}</td><td>${s.name}</td><td>${s.score.toLocaleString()}</td></tr>`;
+      });
+    }
+
+    html += '</table>';
+    if (newBestRank <= 20) {
+      html += `<div class="lb-best">Best rank: #${newBestRank}</div>`;
+    }
+    lbEl.innerHTML = html;
+  }
 }
 
 function resetGame() {
@@ -2121,6 +2768,9 @@ function resetGame() {
     shakeIntensity: 0,
   });
 
+  // Start game music
+  if (audioEnabled) audioManager.playMusic('music_standard');
+
   nextCoralSpawn = 2;
   nextKrillSpawn = 1;
   nextPredatorSpawn = 10;
@@ -2136,6 +2786,11 @@ function resetGame() {
     borderGroups[i].position.z = 15;
     if (borderGroups[i + 1]) borderGroups[i + 1].position.z = 15 - WALL_SLAB_LEN;
   }
+  // Reset reef floor
+  for (let i = 0; i < reefFloorGroups.length; i += 2) {
+    reefFloorGroups[i].position.z = 15;
+    if (reefFloorGroups[i + 1]) reefFloorGroups[i + 1].position.z = 15 - REEF_SLAB_LEN;
+  }
   // Reset outer scatter
   for (let i = 0; i < outerScatterGroups.length; i += 2) {
     outerScatterGroups[i].position.z = 15;
@@ -2143,7 +2798,7 @@ function resetGame() {
   }
 
   // Reset visuals
-  scene.fog.color.setHex(0x0E5A8A);
+  scene.fog.color.setHex(0x1B8DC2);
   ambientLight.color.setHex(0x4A90B8);
   ambientLight.intensity = 0.7;
   dirLight.color.setHex(0xA8E0FF);
@@ -2524,9 +3179,9 @@ function updateCamera(elapsed, dt) {
     state.shakeIntensity = 0;
   }
 
-  // Bloom zoom — punch camera closer during active bloom
+  // Bloom zoom — punch camera CLOSER during active bloom (lower FOV = zoom in)
   if (state.inBloom) {
-    camTargetFov = CAM_BASE_FOV + 15; // zoomed in relative to current base
+    camTargetFov = CAM_BASE_FOV - 12; // tighter framing, less background drawn
   } else {
     camTargetFov = CAM_BASE_FOV;
   }
@@ -2568,6 +3223,7 @@ canvas.addEventListener('touchend', (e) => {
     if (dx > 0 && state.targetLane < 2) state.targetLane++;
     if (state.targetLane !== oldLane) {
       swimSpeedBoost = 1.0;
+      if (audioEnabled) audioManager.play('lane_change');
     }
   }
 }, { passive: false });
@@ -2601,6 +3257,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (state.targetLane !== oldLane) {
     swimSpeedBoost = 1.0;
+    if (audioEnabled) audioManager.play('lane_change');
   }
 });
 
@@ -2629,14 +3286,139 @@ function updateHUD() {
 // ─────────────────────────────────────────────
 // UI BUTTONS
 // ─────────────────────────────────────────────
+let audioEnabled = true;
+
 document.getElementById('start-btn').addEventListener('click', () => {
+  audioManager.init();
+  audioManager.play('ui_click');
+  audioManager.playMusic('music_menu');
   document.getElementById('title-screen').style.display = 'none';
   resetGame();
 });
 
+// Save high score button
+function submitHighScore() {
+  const nameEl = document.getElementById('name-entry');
+  const name = (nameEl.value || 'AAA').toUpperCase().slice(0, 3);
+  highScoreManager.submit(name, state.score, state.level, state.sarahFound, state.krillCount, state.distance);
+  // Show confirmation
+  document.getElementById('new-highscore').textContent = 'SCORE SAVED!';
+  document.getElementById('name-entry-wrap').style.display = 'none';
+  const rank = highScoreManager.getRank(state.score);
+  if (rank <= 20) {
+    document.getElementById('rank-display').textContent = `Rank: #${rank}`;
+    document.getElementById('rank-display').style.display = 'block';
+  }
+}
+
+document.getElementById('submit-score-btn').addEventListener('click', () => {
+  audioManager.play('ui_click');
+  submitHighScore();
+});
+
+// Also submit on Enter key in name field
+document.getElementById('name-entry').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    audioManager.play('ui_click');
+    submitHighScore();
+  }
+});
+
+// Death screen logo → back to main menu
+document.querySelector('#death-screen .death-logo').addEventListener('click', () => {
+  audioManager.play('ui_click');
+  // Save score if pending
+  const nameWrap = document.getElementById('name-entry-wrap');
+  if (nameWrap.style.display !== 'none') {
+    submitHighScore();
+  }
+  document.getElementById('death-screen').style.display = 'none';
+  document.getElementById('title-screen').style.display = 'flex';
+  state.dead = false;
+  state.playing = false;
+});
+
 document.getElementById('restart-btn').addEventListener('click', () => {
+  audioManager.init();
+  audioManager.play('ui_click');
+
+  // Submit high score if not already saved
+  const nameWrap = document.getElementById('name-entry-wrap');
+  if (nameWrap.style.display !== 'none') {
+    submitHighScore();
+  }
+
   resetGame();
 });
+
+document.getElementById('audio-btn').addEventListener('click', () => {
+  audioEnabled = !audioEnabled;
+  const onSvg = document.getElementById('audio-on');
+  const offSvg = document.getElementById('audio-off');
+  if (audioEnabled) {
+    onSvg.style.display = 'block';
+    offSvg.style.display = 'none';
+  } else {
+    onSvg.style.display = 'none';
+    offSvg.style.display = 'block';
+  }
+});
+
+document.getElementById('highscores-btn').addEventListener('click', () => {
+  showHighScoresOverlay();
+});
+
+document.getElementById('highscore-close').addEventListener('click', () => {
+  hideHighScoresOverlay();
+});
+
+// Initialize audio on first interaction
+document.addEventListener('click', () => {
+  audioManager.init();
+}, { once: true });
+
+document.addEventListener('touchstart', () => {
+  audioManager.init();
+}, { once: true });
+
+// ─────────────────────────────────────────────
+// HIGH SCORE UI
+// ─────────────────────────────────────────────
+async function showHighScoresOverlay() {
+  const overlay = document.getElementById('highscore-overlay');
+  const tbody = document.getElementById('highscore-tbody');
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:rgba(255,255,255,0.4);">Loading...</td></tr>';
+  overlay.classList.add('visible');
+
+  // Try to merge in server scores
+  await highScoreManager.fetchServerScores();
+
+  tbody.innerHTML = '';
+  const scores = highScoreManager.getScores();
+  if (scores.length === 0) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="4" style="text-align:center;color:rgba(255,255,255,0.5);">No scores yet</td>';
+    tbody.appendChild(row);
+  } else {
+    scores.forEach((score, idx) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${idx + 1}</td>
+        <td>${score.name}</td>
+        <td>${score.score.toLocaleString()}</td>
+        <td>${score.level}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  overlay.classList.add('visible');
+}
+
+function hideHighScoresOverlay() {
+  document.getElementById('highscore-overlay').classList.remove('visible');
+}
 
 // ─────────────────────────────────────────────
 // LOGO CAUSTIC OVERLAY — 2D canvas on the title logo
@@ -2728,17 +3510,31 @@ function update(time) {
 
   // (caustics time is set at top of loop for all materials)
 
-  // Animate particles
+  // Animate particles — gentle drift + scroll with world when playing
   const positions = particles.geometry.attributes.position.array;
+  const pScroll = state.playing ? state.scrollSpeed * dt : 0;
   for (let i = 0; i < particleCount; i++) {
     positions[i * 3 + 1] += Math.sin(elapsed + i) * 0.002;
     positions[i * 3] += Math.cos(elapsed * 0.5 + i * 0.3) * 0.001;
+    positions[i * 3 + 2] += pScroll; // scroll with world
+    // Wrap particles that go off-screen back to the top
+    if (positions[i * 3 + 2] > 15) {
+      positions[i * 3 + 2] = -50 - Math.random() * 20;
+      positions[i * 3] = (Math.random() - 0.5) * 20;
+    }
   }
   particles.geometry.attributes.position.needsUpdate = true;
 
-  // Light shaft animation
+  // Light shafts — animate + scroll with world
   lightShafts.forEach((shaft, i) => {
     shaft.material.opacity = 0.03 + Math.sin(elapsed * 0.3 + i * 1.5) * 0.02;
+    if (state.playing) {
+      shaft.position.z += pScroll;
+      if (shaft.position.z > 10) {
+        shaft.position.z = -30 - Math.random() * 20;
+        shaft.position.x = (Math.random() - 0.5) * 16;
+      }
+    }
   });
 
   // Animate Jack (always, even on title)
@@ -2820,8 +3616,9 @@ function update(time) {
     }
   }
 
-  // Move objects toward Jack (world scrolls)
-  const scrollDelta = state.scrollSpeed * dt;
+  // Move objects toward Jack (world scrolls) — faster during bloom
+  const bloomSpeedMult = state.inBloom ? 1.6 : 1.0;
+  const scrollDelta = state.scrollSpeed * bloomSpeedMult * dt;
 
   // Drive caustics scroll so they move with the ground
   jackCausticsUniforms.uScrollZ.value += scrollDelta;
@@ -2835,6 +3632,15 @@ function update(time) {
     group.position.z += scrollDelta;
     if (group.position.z > 20 + WALL_SLAB_LEN) {
       group.position.z -= 2 * WALL_SLAB_LEN;
+    }
+  });
+
+  // Reef floor: leapfrog scroll + reshuffle on wrap for variety
+  reefFloorGroups.forEach(group => {
+    group.position.z += scrollDelta;
+    if (group.position.z > 20 + REEF_SLAB_LEN) {
+      group.position.z -= 2 * REEF_SLAB_LEN;
+      _reshuffleReefSlab(group);
     }
   });
 
@@ -2924,7 +3730,7 @@ function update(time) {
     // End bloom when the trailing edge has passed Jack (bloom cloud is 50 units long, starts at -60)
     // The trailing edge is at bloomParticles.position.z + (-60), leading edge at + (-60 + 50)
     // End when even the trailing edge is well past Jack
-    if (bloomParticles.position.z > 65) endBloom(false);
+    if (bloomParticles.position.z > 120) endBloom(false);
   }
 
   // Sarah's boat position (always far ahead)
