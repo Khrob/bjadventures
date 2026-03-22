@@ -420,24 +420,87 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // ─────────────────────────────────────────────
 // AUDIO MANAGER — Web Audio API with oscillator stubs
+// Audio attribution:
+//   Underwater White Noise.wav by psiboy123
+//   https://freesound.org/s/448460/
+//   License: Creative Commons 0
+//
+//   Swoosh Sound 1 by Masgame -- https://freesound.org/s/347546/ -- License: Creative Commons 0
 // ─────────────────────────────────────────────
 class AudioManager {
   constructor() {
     this.audioContext = null;
     this.masterVolume = 1.0;
     this.sfxVolume = 0.8;
-    this.musicVolume = 0.5;
+    this.musicVolume = 0.4;
     this.currentMusicId = null;
-    this.currentMusicGain = null;
+    this.musicSource = null;
+    this.musicGainNode = null;
+    this.musicBuffer = null;
+    this.swooshBuffer = null;
     this.initialized = false;
+    this.muted = false;
   }
 
   init() {
-    if (this.initialized) return;
-    // Create AudioContext on first user interaction (required by mobile)
+    if (this.initialized) {
+      // Always try to resume on user gesture (browsers suspend until interaction)
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        this.audioContext.resume();
+      }
+      return;
+    }
     this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+    this.musicGainNode = this.audioContext.createGain();
+    this.musicGainNode.gain.value = this.musicVolume * this.masterVolume;
+    this.musicGainNode.connect(this.audioContext.destination);
     this.initialized = true;
     console.log('AudioManager initialized');
+
+    // Load the underwater ambient loop
+    fetch('audio/448460__psiboy123__underwater-white-noise.wav')
+      .then(res => res.arrayBuffer())
+      .then(buf => this.audioContext.decodeAudioData(buf))
+      .then(decoded => {
+        this.musicBuffer = decoded;
+        console.log('Underwater ambient loaded:', decoded.duration.toFixed(1) + 's');
+        // Auto-start if music was requested before load finished
+        if (this.currentMusicId) this._startMusicLoop();
+      })
+      .catch(e => console.warn('Failed to load music:', e));
+
+    // Load swoosh sound for lane changes (slowed 15%, pitch dropped 75%)
+    fetch('audio/shorter-swoosh.m4a')
+      .then(res => res.arrayBuffer())
+      .then(buf => this.audioContext.decodeAudioData(buf))
+      .then(decoded => {
+        this.swooshBuffer = decoded;
+        console.log('Swoosh sound loaded:', decoded.duration.toFixed(1) + 's');
+      })
+      .catch(e => console.warn('Failed to load swoosh:', e));
+  }
+
+  _startMusicLoop() {
+    if (!this.musicBuffer || !this.audioContext) return;
+    // Stop existing source if any
+    if (this.musicSource) {
+      try { this.musicSource.stop(); } catch(e) {}
+    }
+    this.musicSource = this.audioContext.createBufferSource();
+    this.musicSource.buffer = this.musicBuffer;
+    this.musicSource.loop = true;
+    this.musicSource.connect(this.musicGainNode);
+    this.musicSource.start(0);
+  }
+
+  _updateMusicGain() {
+    if (this.musicGainNode) {
+      const target = this.muted ? 0 : this.musicVolume * this.masterVolume;
+      this.musicGainNode.gain.setTargetAtTime(target, this.audioContext.currentTime, 0.3);
+    }
   }
 
   _createOscillator(freq, duration, type = 'sine') {
@@ -482,8 +545,18 @@ class AudioManager {
 
     switch(id) {
       case 'lane_change':
-        this._createOscillator(400, 0.15, 'sine');
-        this._createOscillator(200, 0.15, 'sine');
+        // Swoosh sound — slowed 15% (rate 0.85), frequency dropped 75% (rate * 0.25 = 0.2125)
+        if (this.swooshBuffer) {
+          const now = this.audioContext.currentTime;
+          const source = this.audioContext.createBufferSource();
+          const env = this.audioContext.createGain();
+          source.buffer = this.swooshBuffer;
+          source.playbackRate.value = 0.85 * 0.15 * 0.5; // halved again
+          env.gain.setValueAtTime(v * 0.3, now); // quieter
+          source.connect(env);
+          env.connect(this.audioContext.destination);
+          source.start(now);
+        }
         break;
       case 'krill_eat':
         this._createOscillator(800, 0.1, 'sine');
@@ -538,15 +611,37 @@ class AudioManager {
 
   playMusic(id) {
     if (!this.initialized) return;
+    if (this.currentMusicId === id) return; // already playing this
     this.currentMusicId = id;
+    this._startMusicLoop();
+  }
+
+  fadeOutMusic(duration = 2.0) {
+    if (!this.musicGainNode || !this.audioContext) return;
+    const now = this.audioContext.currentTime;
+    this.musicGainNode.gain.cancelScheduledValues(now);
+    this.musicGainNode.gain.setValueAtTime(this.musicGainNode.gain.value, now);
+    this.musicGainNode.gain.linearRampToValueAtTime(0, now + duration);
+    setTimeout(() => {
+      this.stopMusic();
+      // Restore gain for next playback
+      if (this.musicGainNode) {
+        this.musicGainNode.gain.setValueAtTime(this.musicVolume * this.masterVolume, this.audioContext.currentTime);
+      }
+    }, duration * 1000);
   }
 
   stopMusic() {
     this.currentMusicId = null;
+    if (this.musicSource) {
+      try { this.musicSource.stop(); } catch(e) {}
+      this.musicSource = null;
+    }
   }
 
   setMusicVolume(v) {
     this.musicVolume = Math.max(0, Math.min(1, v));
+    this._updateMusicGain();
   }
 
   setSfxVolume(v) {
@@ -716,7 +811,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.35;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x1B8DC2, 0.033);
+scene.fog = new THREE.FogExp2(0x0E6EC8, 0.028);
 
 // Camera FOV is computed dynamically to guarantee the full lane area
 // is visible regardless of aspect ratio (portrait phones, etc.)
@@ -1121,8 +1216,8 @@ sandColCanvas.height = SAND_TEX_SIZE;
   const W = SAND_TEX_SIZE, H = SAND_TEX_SIZE;
   const imgData = ctx.createImageData(W, H);
   const d = imgData.data;
-  // Light tan (troughs): rgb(215, 195, 155)
-  // Warm yellow (peaks):  rgb(250, 238, 175)
+  // Rich golden (troughs): rgb(245, 220, 80)
+  // Vivid yellow (peaks):   rgb(255, 250, 110)
   for (let py = 0; py < H; py++) {
     for (let px = 0; px < W; px++) {
       const u = px / W, v = py / H;
@@ -1133,9 +1228,9 @@ sandColCanvas.height = SAND_TEX_SIZE;
       const h = (r1 + r2 + r3 + 0.5); // 0–1 range
       const t = Math.max(0, Math.min(1, h));
       const idx = (py * W + px) * 4;
-      d[idx]     = Math.floor(215 + t * 35);  // R: 215→250
-      d[idx + 1] = Math.floor(195 + t * 43);  // G: 195→238
-      d[idx + 2] = Math.floor(155 + t * 20);  // B: 155→175
+      d[idx]     = Math.floor(245 + t * 10);  // R: 245→255
+      d[idx + 1] = Math.floor(220 + t * 30);  // G: 220→250
+      d[idx + 2] = Math.floor(80 + t * 30);   // B: 80→110
       d[idx + 3] = 255;
     }
   }
@@ -2547,7 +2642,7 @@ function checkLevelUp() {
       dirLight.intensity = 0.6;
     } else if (state.level === 11) {
       // Dawn — revert to normal daytime
-      scene.fog.color.setHex(0x1B8DC2);
+      scene.fog.color.setHex(0x0E6EC8);
       ambientLight.color.setHex(0x4A90B8);
       ambientLight.intensity = 0.7;
       dirLight.color.setHex(0xA8E0FF);
@@ -2598,13 +2693,13 @@ function triggerDeath() {
 
   if (state.winState) {
     if (audioEnabled) audioManager.play('sarah_found');
-    if (audioEnabled) audioManager.playMusic('music_menu');
+    if (audioEnabled) audioManager.fadeOutMusic(2.0);
     state.sarahFound = true;
     state.score = Math.floor(state.score * CONFIG.scoring.sarahMultiplier);
     showSarahCutscene();
   } else {
     if (audioEnabled) audioManager.play('death');
-    if (audioEnabled) audioManager.playMusic('music_menu');
+    if (audioEnabled) audioManager.fadeOutMusic(2.0);
     showDeathScreen();
   }
 }
@@ -2736,8 +2831,8 @@ function showDeathScreen() {
   }
 }
 
-function resetGame() {
-  // Clear all spawned objects
+// Clear all spawned game objects (shared by resetGame and returnToMenu)
+function clearGameObjects() {
   obstacles.forEach(o => scene.remove(o));
   obstacles.length = 0;
   krillItems.forEach(k => scene.remove(k));
@@ -2753,6 +2848,53 @@ function resetGame() {
   bloomKrillMeshes = [];
   branchPaths.forEach(bp => scene.remove(bp));
   branchPaths.length = 0;
+}
+
+function returnToMenu() {
+  clearGameObjects();
+
+  Object.assign(state, {
+    playing: false, dead: false, paused: false,
+    lane: 1, targetLane: 1, laneX: 0,
+    health: CONFIG.health.max, bond: 0, winState: false,
+    level: 1, distance: 0, score: 0, krillCount: 0,
+    lastEatTime: performance.now() / 1000, timeSinceEat: 0,
+    scrollSpeed: CONFIG.scroll.baseSpeed,
+    sarahFound: false,
+    inBloom: false, bloomTimer: 0,
+    predatorEncounters: 0, consecutivePredatorDodges: 0,
+    reachedWinStateTwice: false, winStateCount: 0,
+    completedBloom: false,
+    shakeIntensity: 0,
+  });
+
+  nextCoralSpawn = 2;
+  nextKrillSpawn = 1;
+  nextPredatorSpawn = 10;
+  lastPredatorName = '';
+  swimSpeedBoost = 0;
+  swimPhase = 0;
+  pecEatWiggle = 0;
+  prevTargetLane = 1;
+
+  // Reset visuals
+  scene.fog.color.setHex(0x0E6EC8);
+  ambientLight.color.setHex(0x4A90B8);
+  ambientLight.intensity = 0.7;
+  dirLight.color.setHex(0xA8E0FF);
+  dirLight.intensity = 1.4;
+
+  sarahBoat.visible = false;
+  document.getElementById('win-state-indicator').style.display = 'none';
+  document.getElementById('death-screen').style.display = 'none';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('title-screen').style.display = 'flex';
+
+  jackGroup.position.set(0, 0.5, -1);
+}
+
+function resetGame() {
+  clearGameObjects();
   nextBranchSpawn = 15 + Math.random() * 20;
 
   // Reset state
@@ -2801,7 +2943,7 @@ function resetGame() {
   }
 
   // Reset visuals
-  scene.fog.color.setHex(0x1B8DC2);
+  scene.fog.color.setHex(0x0E6EC8);
   ambientLight.color.setHex(0x4A90B8);
   ambientLight.intensity = 0.7;
   dirLight.color.setHex(0xA8E0FF);
@@ -3241,12 +3383,11 @@ document.addEventListener('keydown', (e) => {
   if (e.key === ' ') {
     e.preventDefault();
     if (document.getElementById('title-screen').style.display !== 'none') {
-      document.getElementById('title-screen').style.display = 'none';
-      resetGame();
+      startFromTitle();
       return;
     }
     if (state.dead) {
-      resetGame();
+      restartFromDeath();
       return;
     }
   }
@@ -3291,13 +3432,26 @@ function updateHUD() {
 // ─────────────────────────────────────────────
 let audioEnabled = true;
 
-document.getElementById('start-btn').addEventListener('click', () => {
+function startFromTitle() {
   audioManager.init();
   audioManager.play('ui_click');
   audioManager.playMusic('music_menu');
   document.getElementById('title-screen').style.display = 'none';
   resetGame();
-});
+}
+
+function restartFromDeath() {
+  audioManager.init();
+  audioManager.play('ui_click');
+  // Submit high score if not already saved
+  const nameWrap = document.getElementById('name-entry-wrap');
+  if (nameWrap.style.display !== 'none') {
+    submitHighScore();
+  }
+  resetGame();
+}
+
+document.getElementById('start-btn').addEventListener('click', startFromTitle);
 
 // Save high score button
 function submitHighScore() {
@@ -3336,27 +3490,15 @@ document.querySelector('#death-screen .death-logo').addEventListener('click', ()
   if (nameWrap.style.display !== 'none') {
     submitHighScore();
   }
-  document.getElementById('death-screen').style.display = 'none';
-  document.getElementById('title-screen').style.display = 'flex';
-  state.dead = false;
-  state.playing = false;
+  returnToMenu();
 });
 
-document.getElementById('restart-btn').addEventListener('click', () => {
-  audioManager.init();
-  audioManager.play('ui_click');
-
-  // Submit high score if not already saved
-  const nameWrap = document.getElementById('name-entry-wrap');
-  if (nameWrap.style.display !== 'none') {
-    submitHighScore();
-  }
-
-  resetGame();
-});
+document.getElementById('restart-btn').addEventListener('click', restartFromDeath);
 
 document.getElementById('audio-btn').addEventListener('click', () => {
   audioEnabled = !audioEnabled;
+  audioManager.muted = !audioEnabled;
+  audioManager._updateMusicGain();
   const onSvg = document.getElementById('audio-on');
   const offSvg = document.getElementById('audio-off');
   if (audioEnabled) {
@@ -3544,7 +3686,53 @@ function update(time) {
   animateJack(elapsed, dt);
 
   if (!state.playing) {
-    // Gentle camera movement even on title screen
+    // Pre-game: Jack swims through empty lanes, world scrolls gently
+    const idleScrollDelta = CONFIG.scroll.baseSpeed * 0.6 * dt;
+
+    // Scroll caustics
+    jackCausticsUniforms.uScrollZ.value += idleScrollDelta;
+
+    // Scroll sand
+    sandNormalTex.offset.y += idleScrollDelta * 0.005;
+    sandColTex.offset.y += idleScrollDelta * 0.005;
+
+    // Scroll walls, reef, outer scatter
+    borderGroups.forEach(group => {
+      group.position.z += idleScrollDelta;
+      if (group.position.z > 20 + WALL_SLAB_LEN) group.position.z -= 2 * WALL_SLAB_LEN;
+    });
+    reefFloorGroups.forEach(group => {
+      group.position.z += idleScrollDelta;
+      if (group.position.z > 20 + REEF_SLAB_LEN) {
+        group.position.z -= 2 * REEF_SLAB_LEN;
+        _reshuffleReefSlab(group);
+      }
+    });
+    outerScatterGroups.forEach(group => {
+      group.position.z += idleScrollDelta;
+      if (group.position.z > 20 + OUTER_SLAB_LEN) group.position.z -= 2 * OUTER_SLAB_LEN;
+    });
+
+    // Particles scroll in idle too
+    const idlePositions = particles.geometry.attributes.position.array;
+    for (let i = 0; i < particleCount; i++) {
+      idlePositions[i * 3 + 2] += idleScrollDelta;
+      if (idlePositions[i * 3 + 2] > 15) {
+        idlePositions[i * 3 + 2] = -50 - Math.random() * 20;
+        idlePositions[i * 3] = (Math.random() - 0.5) * 20;
+      }
+    }
+    particles.geometry.attributes.position.needsUpdate = true;
+
+    // God rays scroll
+    lightShafts.forEach(shaft => {
+      shaft.position.z += idleScrollDelta;
+      if (shaft.position.z > 10) {
+        shaft.position.z = -30 - Math.random() * 20;
+        shaft.position.x = (Math.random() - 0.5) * 16;
+      }
+    });
+
     updateCamera(elapsed, dt);
     renderer.render(scene, camera);
     return;
