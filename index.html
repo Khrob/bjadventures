@@ -58,11 +58,12 @@ html, body {
   #title-screen { justify-content: flex-start; padding-top: 8vh; }
 }
 #title-logo {
-  width: 90%; max-width: 90vw; margin-bottom: 12px;
+  width: 100%; display: block; margin-bottom: 12px;
   filter: none;
 }
 #logo-wrap {
-  position: relative; display: inline-block; overflow: hidden;
+  position: relative; display: block; overflow: hidden;
+  width: 90%; max-width: 90vw; margin: 0 auto;
   animation: logoBob 3s ease-in-out infinite;
 }
 @keyframes logoBob {
@@ -860,7 +861,24 @@ const scene = new THREE.Scene();
 // Note: ACES filmic tone mapping darkens colours, so this input value
 // is brighter than what appears on screen. Approx output: ~(0, 127, 255).
 const WATER_COLOR = 0x19AAFF;
-scene.fog = new THREE.Fog(WATER_COLOR, 14, 22);
+
+// Fog near/far adapt to aspect ratio.
+// Landscape (16:9, aspect ~1.78): use base values.
+// Portrait (9:16, aspect ~0.56): camera sees more ground, push fog further out.
+const FOG_BASE_NEAR = 14;
+const FOG_BASE_FAR = 22;
+function computeFogForAspect(aspect) {
+  // Scale factors: 1.0 at landscape (aspect >= 1.2), ramp up in portrait.
+  // Near scales gently so fog still starts close; far scales more to push the fade out.
+  const t = aspect >= 1.2 ? 0 : (1.2 - Math.max(0.4, aspect));
+  return {
+    near: FOG_BASE_NEAR - t * (FOG_BASE_NEAR - 5) / 0.8, // lerp towards 5 in portrait
+    far: FOG_BASE_FAR * (1.0 + t * 0.6)
+  };
+}
+
+const initFogVals = computeFogForAspect(window.innerWidth / window.innerHeight);
+scene.fog = new THREE.Fog(WATER_COLOR, initFogVals.near, initFogVals.far);
 scene.background = new THREE.Color(WATER_COLOR);
 
 // Camera FOV is computed dynamically to guarantee the full lane area
@@ -3302,7 +3320,7 @@ envDebug.innerHTML = `
 </label>
 <label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
   Fog Far: <span id="dbg-fog-far-val">${scene.fog.far.toFixed(1)}</span>
-  <input type="range" id="dbg-fog-far" min="0" max="30" step="0.05" value="${scene.fog.far}"
+  <input type="range" id="dbg-fog-far" min="0" max="35" step="0.05" value="${scene.fog.far}"
     style="width:120px;vertical-align:middle;accent-color:#0f0;">
 </label>
 `;
@@ -4151,6 +4169,11 @@ window.addEventListener('resize', () => {
   }
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // Adapt fog to new aspect ratio
+  const fogVals = computeFogForAspect(aspect);
+  scene.fog.near = fogVals.near;
+  scene.fog.far = fogVals.far;
 });
 
 // ─────────────────────────────────────────────
