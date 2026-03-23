@@ -710,7 +710,7 @@ class HighScoreManager {
 
   async fetchServerScores() {
     try {
-      const res = await fetch('https://api.babyjackadventures.com/scores');
+      const res = await fetch('https://api.babyjackadventures.com/scores?_t=' + Date.now());
       if (res.ok) {
         const serverScores = await res.json();
         // Merge server scores into local, preferring higher scores
@@ -737,7 +737,7 @@ class HighScoreManager {
 
   async fetchOnlineScoresRaw() {
     try {
-      const res = await fetch('https://api.babyjackadventures.com/scores');
+      const res = await fetch('https://api.babyjackadventures.com/scores?_t=' + Date.now());
       if (res.ok) {
         const serverScores = await res.json();
         return serverScores.map(s => ({
@@ -1096,9 +1096,9 @@ jackTexture.wrapT = THREE.RepeatWrapping;
 const jackTexParams = {
   baseR: 7, baseG: 31, baseB: 80,        // deep blue base
   spotR: 240, spotG: 250, spotB: 245,    // cool white spots
-  spotRadius: 3,                          // spot size in px
+  spotRadius: 4,                          // spot size in px
   spotSoftness: 3,                        // feather around spot
-  minDist: 10,                            // Poisson min distance
+  minDist: 16,                            // Poisson min distance
   numCandidates: 30,                      // Poisson k param
   bellyR: 230, bellyG: 240, bellyB: 242, // bright white belly
   bellyBlend: 0.45,                       // stronger belly gradient
