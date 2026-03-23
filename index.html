@@ -11,7 +11,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
   width: 100%; height: 100%; overflow: hidden;
-  background: #0B4A6F; touch-action: none;
+  background: #19AAFF; touch-action: none;
   font-family: 'Fredoka', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 #game-canvas { width: 100%; height: 100%; display: block; }
@@ -59,10 +59,10 @@ html, body {
 }
 #title-logo {
   width: 90%; max-width: 90vw; margin-bottom: 12px;
-  filter: drop-shadow(0 0 20px rgba(255,200,50,0.4));
+  filter: none;
 }
 #logo-wrap {
-  position: relative; display: inline-block;
+  position: relative; display: inline-block; overflow: hidden;
   animation: logoBob 3s ease-in-out infinite;
 }
 @keyframes logoBob {
@@ -70,7 +70,7 @@ html, body {
   50% { transform: translateY(-8px); }
 }
 #logo-caustic {
-  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  position: absolute; top: 0; left: 0;
   pointer-events: none; mix-blend-mode: overlay; opacity: 0.3;
   background: transparent;
 }
@@ -210,16 +210,33 @@ html, body {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   display: none; flex-direction: column; align-items: center; justify-content: center;
   z-index: 22; pointer-events: all;
-  background: rgba(0, 10, 30, 0.95);
+  background: rgba(8, 50, 90, 0.92);
 }
 #highscore-overlay.visible { display: flex; }
 #highscore-content {
-  background: rgba(0, 20, 50, 0.8); border: 1px solid rgba(136, 204, 255, 0.3);
+  background: rgba(15, 60, 110, 0.85); border: 1px solid rgba(136, 204, 255, 0.35);
   border-radius: 12px; padding: 24px; max-width: 500px; width: 90%;
   max-height: 70vh; overflow-y: auto;
 }
 #highscore-overlay h2 {
-  color: #88ccff; margin-bottom: 16px; text-align: center; font-size: 24px;
+  color: #88ccff; margin-bottom: 12px; text-align: center; font-size: 24px;
+}
+.hs-tabs {
+  display: flex; gap: 0; margin-bottom: 16px; border-bottom: 1px solid rgba(136, 204, 255, 0.25);
+}
+.hs-tab {
+  flex: 1; padding: 8px 12px; text-align: center; font-size: 13px; font-weight: 600;
+  color: rgba(255,255,255,0.45); background: none; border: none; cursor: pointer;
+  border-bottom: 2px solid transparent; font-family: inherit; letter-spacing: 1px;
+  transition: all 0.2s;
+}
+.hs-tab:hover { color: rgba(255,255,255,0.7); }
+.hs-tab.active {
+  color: #88ccff; border-bottom-color: #88ccff;
+}
+.hs-status {
+  text-align: center; font-size: 11px; color: rgba(255,255,255,0.35);
+  margin-top: 8px; font-style: italic;
 }
 #highscore-table {
   width: 100%; border-collapse: collapse; color: rgba(255,255,255,0.8);
@@ -387,6 +404,10 @@ html, body {
 <div id="highscore-overlay">
   <div id="highscore-content">
     <h2>HIGH SCORES</h2>
+    <div class="hs-tabs">
+      <button class="hs-tab active" id="hs-tab-online">ONLINE</button>
+      <button class="hs-tab" id="hs-tab-local">THIS DEVICE</button>
+    </div>
     <table id="highscore-table">
       <thead>
         <tr>
@@ -398,6 +419,7 @@ html, body {
       </thead>
       <tbody id="highscore-tbody"></tbody>
     </table>
+    <div class="hs-status" id="hs-status"></div>
     <button id="highscore-close" class="restart-btn">CLOSE</button>
   </div>
 </div>
@@ -712,6 +734,29 @@ class HighScoreManager {
     } catch (e) { /* server unavailable, use local only */ }
   }
 
+  async fetchOnlineScoresRaw() {
+    try {
+      const res = await fetch('https://api.babyjackadventures.com/scores');
+      if (res.ok) {
+        const serverScores = await res.json();
+        return serverScores.map(s => ({
+          name: s.player_name || 'AAA',
+          score: s.total_score,
+          level: s.highest_level,
+          sarah_found: s.sarah_found,
+          krill: s.krill_count,
+          distance: s.distance,
+          timestamp: s.created_at
+        })).sort((a, b) => b.score - a.score).slice(0, 20);
+      }
+    } catch (e) { /* server unavailable */ }
+    return null;
+  }
+
+  getLocalScores() {
+    return this.scores.slice(0, 20);
+  }
+
   getRank(score) {
     let rank = 1;
     for (const s of this.scores) {
@@ -725,7 +770,7 @@ class HighScoreManager {
       name: (name || 'AAA').toUpperCase().slice(0, 3),
       score: Math.floor(score),
       level,
-      sarahFound,
+      sarah_found: sarahFound,
       krill,
       distance: Math.floor(distance),
       timestamp: new Date().toISOString()
@@ -738,7 +783,7 @@ class HighScoreManager {
       body: JSON.stringify(entry)
     }).catch(() => {}); // gracefully fail
 
-    // Add to local scores
+    // Add to local scores (use sarahFound key for local compatibility)
     this.scores.push(entry);
     this.scores.sort((a, b) => b.score - a.score);
     this.scores = this.scores.slice(0, 20);
@@ -811,7 +856,12 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.35;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x0E6EC8, 0.028);
+// Single source of truth for the water/fog colour.
+// Note: ACES filmic tone mapping darkens colours, so this input value
+// is brighter than what appears on screen. Approx output: ~(0, 127, 255).
+const WATER_COLOR = 0x19AAFF;
+scene.fog = new THREE.Fog(WATER_COLOR, 14, 22);
+scene.background = new THREE.Color(WATER_COLOR);
 
 // Camera FOV is computed dynamically to guarantee the full lane area
 // is visible regardless of aspect ratio (portrait phones, etc.)
@@ -1216,8 +1266,8 @@ sandColCanvas.height = SAND_TEX_SIZE;
   const W = SAND_TEX_SIZE, H = SAND_TEX_SIZE;
   const imgData = ctx.createImageData(W, H);
   const d = imgData.data;
-  // Rich golden (troughs): rgb(245, 220, 80)
-  // Vivid yellow (peaks):   rgb(255, 250, 110)
+  // Base sand (troughs): rgb(255, 255, 127)
+  // Peaks: slightly brighter
   for (let py = 0; py < H; py++) {
     for (let px = 0; px < W; px++) {
       const u = px / W, v = py / H;
@@ -1228,9 +1278,9 @@ sandColCanvas.height = SAND_TEX_SIZE;
       const h = (r1 + r2 + r3 + 0.5); // 0–1 range
       const t = Math.max(0, Math.min(1, h));
       const idx = (py * W + px) * 4;
-      d[idx]     = Math.floor(245 + t * 10);  // R: 245→255
-      d[idx + 1] = Math.floor(220 + t * 30);  // G: 220→250
-      d[idx + 2] = Math.floor(80 + t * 30);   // B: 80→110
+      d[idx]     = Math.floor(255);            // R: 255
+      d[idx + 1] = Math.floor(255);            // G: 255
+      d[idx + 2] = Math.floor(127 + t * 30);   // B: 127→157
       d[idx + 3] = 255;
     }
   }
@@ -2636,13 +2686,15 @@ function checkLevelUp() {
     if (state.level === 10) {
       // Night mode — ONE level only
       scene.fog.color.setHex(0x050f20);
+      scene.background.setHex(0x050f20);
       ambientLight.color.setHex(0x112244);
       ambientLight.intensity = 0.3;
       dirLight.color.setHex(0x6688aa);
       dirLight.intensity = 0.6;
     } else if (state.level === 11) {
       // Dawn — revert to normal daytime
-      scene.fog.color.setHex(0x0E6EC8);
+      scene.fog.color.setHex(WATER_COLOR);
+      scene.background.setHex(WATER_COLOR);
       ambientLight.color.setHex(0x4A90B8);
       ambientLight.intensity = 0.7;
       dirLight.color.setHex(0xA8E0FF);
@@ -2878,7 +2930,8 @@ function returnToMenu() {
   prevTargetLane = 1;
 
   // Reset visuals
-  scene.fog.color.setHex(0x0E6EC8);
+  scene.fog.color.setHex(WATER_COLOR);
+  scene.background.setHex(WATER_COLOR);
   ambientLight.color.setHex(0x4A90B8);
   ambientLight.intensity = 0.7;
   dirLight.color.setHex(0xA8E0FF);
@@ -2943,7 +2996,8 @@ function resetGame() {
   }
 
   // Reset visuals
-  scene.fog.color.setHex(0x0E6EC8);
+  scene.fog.color.setHex(WATER_COLOR);
+  scene.background.setHex(WATER_COLOR);
   ambientLight.color.setHex(0x4A90B8);
   ambientLight.intensity = 0.7;
   dirLight.color.setHex(0xA8E0FF);
@@ -3225,6 +3279,84 @@ document.getElementById('dbg-tex-opacity').addEventListener('input', (e) => {
 
 // Initial preview
 setTimeout(_updateTexAndPreview, 100);
+
+// ─── Environment Debug Controls ───
+const envDebug = document.createElement('div');
+envDebug.style.cssText = 'margin-top:6px;border-top:1px solid #0f03;padding-top:4px;';
+const _fogCol = '#' + scene.fog.color.getHexString();
+const _sandCol = _rgbToHex(255, 255, 127);
+envDebug.innerHTML = `
+<div style="color:#0f0;font:bold 11px monospace;margin-bottom:3px;">── Environment ──</div>
+<label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
+  Sand Colour: <input type="color" id="dbg-sand-col" value="${_sandCol}"
+    style="width:40px;height:18px;border:none;background:none;vertical-align:middle;cursor:pointer;">
+</label>
+<label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
+  Fog Colour: <input type="color" id="dbg-fog-col" value="${_fogCol}"
+    style="width:40px;height:18px;border:none;background:none;vertical-align:middle;cursor:pointer;">
+</label>
+<label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
+  Fog Near: <span id="dbg-fog-near-val">${scene.fog.near.toFixed(1)}</span>
+  <input type="range" id="dbg-fog-near" min="0" max="20" step="0.05" value="${scene.fog.near}"
+    style="width:120px;vertical-align:middle;accent-color:#0f0;">
+</label>
+<label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
+  Fog Far: <span id="dbg-fog-far-val">${scene.fog.far.toFixed(1)}</span>
+  <input type="range" id="dbg-fog-far" min="0" max="30" step="0.05" value="${scene.fog.far}"
+    style="width:120px;vertical-align:middle;accent-color:#0f0;">
+</label>
+`;
+debugHud.appendChild(envDebug);
+
+// Sand colour picker — regenerate colour map with new trough colour
+const _sandColState = { r: 255, g: 255, b: 127 };
+document.getElementById('dbg-sand-col').addEventListener('input', (e) => {
+  const [r, g, b] = _hexToRgb(e.target.value);
+  _sandColState.r = r; _sandColState.g = g; _sandColState.b = b;
+  // Regenerate sand colour texture
+  const ctx = sandColCanvas.getContext('2d');
+  const W = SAND_TEX_SIZE, H = SAND_TEX_SIZE;
+  const imgData = ctx.createImageData(W, H);
+  const d = imgData.data;
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      const u = px / W, v = py / H;
+      const r1 = Math.sin((v * 8 + u * 1.5) * Math.PI * 2) * 0.4;
+      const r2 = Math.sin((v * 5 - u * 2.0) * Math.PI * 2) * 0.3;
+      const r3 = Math.sin((v * 3 + u * 0.5) * Math.PI * 2) * 0.2;
+      const h = (r1 + r2 + r3 + 0.5);
+      const t = Math.max(0, Math.min(1, h));
+      const idx = (py * W + px) * 4;
+      d[idx]     = Math.floor(r + t * 10);
+      d[idx + 1] = Math.floor(g + t * 30);
+      d[idx + 2] = Math.floor(b + t * 30);
+      d[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+  sandColTex.needsUpdate = true;
+});
+
+// Fog colour picker — also updates scene background to match
+document.getElementById('dbg-fog-col').addEventListener('input', (e) => {
+  const [r, g, b] = _hexToRgb(e.target.value);
+  scene.fog.color.setRGB(r / 255, g / 255, b / 255);
+  scene.background.setRGB(r / 255, g / 255, b / 255);
+});
+
+// Fog near slider — where fog starts (clear zone around Jack)
+document.getElementById('dbg-fog-near').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  document.getElementById('dbg-fog-near-val').textContent = v.toFixed(1);
+  scene.fog.near = v;
+});
+
+// Fog far slider — where fog is fully opaque
+document.getElementById('dbg-fog-far').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  document.getElementById('dbg-fog-far-val').textContent = v.toFixed(1);
+  scene.fog.far = v;
+});
 
 function clearDebugMeshes() {
   debugMeshes.forEach(m => scene.remove(m));
@@ -3530,20 +3662,15 @@ document.addEventListener('touchstart', () => {
 // ─────────────────────────────────────────────
 // HIGH SCORE UI
 // ─────────────────────────────────────────────
-async function showHighScoresOverlay() {
-  const overlay = document.getElementById('highscore-overlay');
+let _hsOnlineScores = null;
+let _hsActiveTab = 'online';
+
+function _renderScoreRows(scores, emptyMsg) {
   const tbody = document.getElementById('highscore-tbody');
-  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:rgba(255,255,255,0.4);">Loading...</td></tr>';
-  overlay.classList.add('visible');
-
-  // Try to merge in server scores
-  await highScoreManager.fetchServerScores();
-
   tbody.innerHTML = '';
-  const scores = highScoreManager.getScores();
-  if (scores.length === 0) {
+  if (!scores || scores.length === 0) {
     const row = document.createElement('tr');
-    row.innerHTML = '<td colspan="4" style="text-align:center;color:rgba(255,255,255,0.5);">No scores yet</td>';
+    row.innerHTML = `<td colspan="4" style="text-align:center;color:rgba(255,255,255,0.5);">${emptyMsg}</td>`;
     tbody.appendChild(row);
   } else {
     scores.forEach((score, idx) => {
@@ -3557,13 +3684,59 @@ async function showHighScoresOverlay() {
       tbody.appendChild(row);
     });
   }
+}
 
+function _setActiveHsTab(tab) {
+  _hsActiveTab = tab;
+  document.getElementById('hs-tab-online').classList.toggle('active', tab === 'online');
+  document.getElementById('hs-tab-local').classList.toggle('active', tab === 'local');
+  const status = document.getElementById('hs-status');
+
+  if (tab === 'online') {
+    if (_hsOnlineScores === null) {
+      _renderScoreRows(null, 'Loading...');
+      status.textContent = 'Fetching scores...';
+    } else if (_hsOnlineScores.length === 0) {
+      _renderScoreRows([], 'No online scores yet');
+      status.textContent = '';
+    } else {
+      _renderScoreRows(_hsOnlineScores, 'No online scores yet');
+      status.textContent = `${_hsOnlineScores.length} scores from all players`;
+    }
+  } else {
+    const local = highScoreManager.getLocalScores();
+    _renderScoreRows(local, 'No scores on this device yet');
+    status.textContent = local.length > 0 ? `${local.length} scores on this device` : '';
+  }
+}
+
+async function showHighScoresOverlay() {
+  const overlay = document.getElementById('highscore-overlay');
+  _hsOnlineScores = null;
+  _hsActiveTab = 'online';
   overlay.classList.add('visible');
+  _setActiveHsTab('online');
+
+  // Fetch online scores
+  const online = await highScoreManager.fetchOnlineScoresRaw();
+  _hsOnlineScores = online || [];
+
+  // Also merge into local for combined tracking
+  await highScoreManager.fetchServerScores();
+
+  // Re-render if still on online tab
+  if (_hsActiveTab === 'online') {
+    _setActiveHsTab('online');
+  }
 }
 
 function hideHighScoresOverlay() {
   document.getElementById('highscore-overlay').classList.remove('visible');
 }
+
+// Tab click handlers
+document.getElementById('hs-tab-online').addEventListener('click', () => _setActiveHsTab('online'));
+document.getElementById('hs-tab-local').addEventListener('click', () => _setActiveHsTab('local'));
 
 // ─────────────────────────────────────────────
 // LOGO CAUSTIC OVERLAY — 2D canvas on the title logo
@@ -3602,17 +3775,19 @@ logoCausticSrc.width = logoCausticSrc.height = LOGO_C_SIZE;
 function updateLogoCaustic(elapsed) {
   const logo = document.getElementById('title-logo');
   if (!logo || !logoCausticCanvas.parentElement) return;
-  // Size canvas to match logo
+  // Size canvas to match logo exactly (both resolution and CSS display size)
   const w = logo.offsetWidth, h = logo.offsetHeight;
   if (w === 0) return;
   logoCausticCanvas.width = w;
   logoCausticCanvas.height = h;
+  logoCausticCanvas.style.width = w + 'px';
+  logoCausticCanvas.style.height = h + 'px';
   const ctx = logoCausticCtx;
   ctx.clearRect(0, 0, w, h);
   // Draw scrolling tiled caustic
   const ox = (elapsed * 15) % LOGO_C_SIZE;
   const oy = (elapsed * 10) % LOGO_C_SIZE;
-  ctx.globalAlpha = 0.25;
+  ctx.globalAlpha = 0.5;
   ctx.globalCompositeOperation = 'lighter';
   for (let tx = -LOGO_C_SIZE; tx < w + LOGO_C_SIZE; tx += LOGO_C_SIZE) {
     for (let ty = -LOGO_C_SIZE; ty < h + LOGO_C_SIZE; ty += LOGO_C_SIZE) {
@@ -3622,7 +3797,7 @@ function updateLogoCaustic(elapsed) {
   // Second layer, different speed/direction
   const ox2 = (elapsed * -8) % LOGO_C_SIZE;
   const oy2 = (elapsed * 12) % LOGO_C_SIZE;
-  ctx.globalAlpha = 0.15;
+  ctx.globalAlpha = 0.35;
   for (let tx = -LOGO_C_SIZE; tx < w + LOGO_C_SIZE; tx += LOGO_C_SIZE) {
     for (let ty = -LOGO_C_SIZE; ty < h + LOGO_C_SIZE; ty += LOGO_C_SIZE) {
       ctx.drawImage(logoCausticSrc, tx + ox2, ty + oy2);
@@ -3938,6 +4113,7 @@ function update(time) {
   if (state.winState) {
     // Warmer scene tint
     scene.fog.color.lerp(new THREE.Color(0x1a4455), dt * 0.5);
+    scene.background.copy(scene.fog.color);
     // Caustics warming is handled by the shared shader uniforms
   }
 
