@@ -768,7 +768,7 @@ class HighScoreManager {
 
   submit(name, score, level, sarahFound, krill, distance) {
     const entry = {
-      name: (name || 'AAA').toUpperCase().slice(0, 3),
+      name: ((name || '').trim().replace(/[^A-Za-z0-9]/g, '') || 'AAA').toUpperCase().slice(0, 3),
       score: Math.floor(score),
       level,
       sarah_found: sarahFound,
@@ -782,7 +782,10 @@ class HighScoreManager {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(entry)
-    }).catch(() => {}); // gracefully fail
+    }).then(r => r.json()).then(res => {
+      if (res.error) console.warn('Score submit rejected:', res.error, entry);
+      else console.log('Score submitted, rank:', res.rank);
+    }).catch(e => console.warn('Score submit failed:', e));
 
     // Add to local scores (use sarahFound key for local compatibility)
     this.scores.push(entry);
@@ -802,7 +805,7 @@ class HighScoreManager {
   }
 
   setPlayerName(name) {
-    this.playerName = (name || 'AAA').toUpperCase().slice(0, 3);
+    this.playerName = ((name || '').trim().replace(/[^A-Za-z0-9]/g, '') || 'AAA').toUpperCase().slice(0, 3);
     localStorage.setItem('bjk_playerName', this.playerName);
   }
 }
@@ -2608,7 +2611,7 @@ function enterBloom() {
   bloomActive = true;
   state.inBloom = true;
   bloomKrillTarget = 30 + Math.floor(state.level * 3);
-  document.getElementById('bloom-indicator').textContent = 'KRILL BLOOM! EAT!';
+  document.getElementById('bloom-indicator').textContent = 'KRILL BLOOM!';
   // Camera zoom is handled by updateCamera checking state.inBloom
 }
 
@@ -3700,8 +3703,9 @@ document.addEventListener('keydown', (e) => {
     toggleDebug();
     return;
   }
-  // Spacebar starts/restarts from title or death screen
+  // Spacebar starts/restarts from title or death screen (but not while typing a name)
   if (e.key === ' ') {
+    if (document.activeElement && document.activeElement.id === 'name-entry') return; // let space type in name field
     e.preventDefault();
     if (document.getElementById('title-screen').style.display !== 'none') {
       startFromTitle();
@@ -3777,7 +3781,7 @@ document.getElementById('start-btn').addEventListener('click', startFromTitle);
 // Save high score button
 function submitHighScore() {
   const nameEl = document.getElementById('name-entry');
-  const name = (nameEl.value || 'AAA').toUpperCase().slice(0, 3);
+  const name = (nameEl.value.trim().replace(/[^A-Za-z0-9]/g, '') || 'AAA').toUpperCase().slice(0, 3);
   highScoreManager.submit(name, state.score, state.level, state.sarahFound, state.krillCount, state.distance);
   // Show confirmation
   document.getElementById('new-highscore').textContent = 'SCORE SAVED!';
@@ -4286,6 +4290,11 @@ function update(time) {
     // The trailing edge is at bloomParticles.position.z + (-60), leading edge at + (-60 + 50)
     // End when even the trailing edge is well past Jack
     if (bloomParticles.position.z > 120) endBloom(false);
+    // End bloom early if all bloom krill have been eaten or scrolled away
+    else if (bloomActive && bloomKrillMeshes.length > 0 &&
+             bloomKrillMeshes.every(k => !krillItems.includes(k))) {
+      endBloom(false);
+    }
   }
 
   // Sarah's boat position (always far ahead)
