@@ -862,6 +862,36 @@ const scene = new THREE.Scene();
 // is brighter than what appears on screen. Approx output: ~(0, 127, 255).
 const WATER_COLOR = 0x19AAFF;
 
+// Debug: emissive intensity for scene objects (0 = off, 1 = full self-lit). Excludes Jack & mobs.
+let DEBUG_EMISSIVE_INTENSITY = 0.05;
+const ROCK_COLORS = [0xF2DD99, 0x84B2A5];
+const CANDY_PALETTE = [0x04F685, 0xFF75F4, 0x8C66FF, 0xE845C5, 0xFBFF00, 0x53D941];
+const CANDY_LABELS = ['orange', 'pink', 'purple', 'green', 'yellow', 'mint'];
+
+// 3-tone cel/toon gradient map for candy materials
+// Creates a tiny 3-pixel RGBA texture: dark → mid → bright, stepped via NearestFilter
+const _toonGradData = new Uint8Array([
+  90, 90, 90, 255,    // shadow band
+  160, 160, 160, 255,  // mid band
+  255, 255, 255, 255,  // lit band
+]);
+const _toonGradTex = new THREE.DataTexture(_toonGradData, 3, 1, THREE.RGBAFormat);
+_toonGradTex.magFilter = THREE.NearestFilter;
+_toonGradTex.minFilter = THREE.NearestFilter;
+_toonGradTex.needsUpdate = true;
+
+// Helper: create a candy toon material with cel-shading bands
+function _makeCandyMaterial(hex) {
+  const mat = new THREE.MeshToonMaterial({
+    color: hex,
+    gradientMap: _toonGradTex,
+    emissive: hex,
+    emissiveIntensity: Math.max(0.15, DEBUG_EMISSIVE_INTENSITY),
+    toneMapped: false, // bypass ACES — keeps candy colours true/punchy
+  });
+  return mat;
+}
+
 // Fog near/far adapt to aspect ratio.
 // Landscape (16:9, aspect ~1.78): use base values.
 // Portrait (9:16, aspect ~0.56): camera sees more ground, push fog further out.
@@ -1469,28 +1499,41 @@ function cloneProp(key) {
         child.material.color.getHSL(hsl);
         const isCoral = key.startsWith('coral');
         if (isCoral) {
-          // Warm tropical coral palette: pinks, salmon, orange, coral, purple (hero image)
-          const coralHues = [0.95, 0.0, 0.03, 0.06, 0.08, 0.12, 0.8, 0.83];
-          const baseHue = coralHues[Math.floor(Math.random() * coralHues.length)];
-          child.material.color.setHSL(
-            baseHue + (Math.random() - 0.5) * 0.04,
-            0.55 + Math.random() * 0.35,            // high saturation 0.55–0.9
-            0.45 + Math.random() * 0.2              // brighter 0.45–0.65
-          );
+          // Bright candy palette
+          const CANDY_COLORS = CANDY_PALETTE;
+          // // Previous warm tropical coral palette (hero image):
+          // const coralHues = [0.95, 0.0, 0.03, 0.06, 0.08, 0.12, 0.8, 0.83];
+          // const baseHue = coralHues[Math.floor(Math.random() * coralHues.length)];
+          // child.material.color.setHSL(
+          //   baseHue + (Math.random() - 0.5) * 0.04,
+          //   0.55 + Math.random() * 0.35,
+          //   0.45 + Math.random() * 0.2
+          // );
+          const cc = CANDY_COLORS[Math.floor(Math.random() * CANDY_COLORS.length)];
+          // Replace with toon material for cel-shaded 3-tone look
+          child.material = _makeCandyMaterial(cc);
+          patchSceneMaterialWithCaustics(child.material, 0.3);
         } else {
-          // Rock: muted greys/browns/tans
-          child.material.color.setHSL(
-            0.08 + Math.random() * 0.08,            // narrow warm hue band
-            0.1 + Math.random() * 0.15,             // low saturation 0.1–0.25
-            0.25 + Math.random() * 0.2              // darker 0.25–0.45
-          );
+          // Rock: sand/teal palette
+          // // Previous: muted greys/browns/tans
+          // child.material.color.setHSL(
+          //   0.08 + Math.random() * 0.08,            // narrow warm hue band
+          //   0.1 + Math.random() * 0.15,             // low saturation 0.1–0.25
+          //   0.25 + Math.random() * 0.2              // darker 0.25–0.45
+          // );
+          const rc = ROCK_COLORS[Math.floor(Math.random() * ROCK_COLORS.length)];
+          child.material.color.setHex(rc);
+          if (DEBUG_EMISSIVE_INTENSITY > 0) {
+            child.material.emissive = new THREE.Color(rc);
+            child.material.emissiveIntensity = DEBUG_EMISSIVE_INTENSITY;
+          }
         }
       }
     }
   });
   // Random rotation around Y
   clone.rotation.y = Math.random() * Math.PI * 2;
-  // Random scale variance ±30%
+  // Random scale variance ±30% (base prop scale, further scaled per-context)
   const sv = 0.7 + Math.random() * 0.6;
   clone.scale.multiplyScalar(sv);
   return clone;
@@ -1538,8 +1581,8 @@ function _buildWallSlab(x, seed) {
       );
       prop.rotation.x = (Math.random() - 0.5) * 0.4;
       prop.rotation.z = (Math.random() - 0.5) * 0.3;
-      // Vary height more for organic feel
-      const heightVariance = 0.6 + Math.random() * 1.2;
+      // Smaller scale for wall decoration — keeps them distinct from lane obstacles
+      const heightVariance = 0.3 + Math.random() * 0.5;
       prop.scale.multiplyScalar(heightVariance);
       group.add(prop);
     }
@@ -1551,13 +1594,23 @@ function _buildFallbackSlab(x, seed) {
   const group = new THREE.Group();
   const side = Math.sign(x);
   for (let z = 0; z > -WALL_SLAB_LEN; z -= WALL_SPACING) {
-    const height = Math.random() * 1.5 + 0.5;
-    const geo = new THREE.BoxGeometry(0.4, height, 0.5 + Math.random() * 0.4);
+    const height = Math.random() * 0.6 + 0.3;
+    const geo = new THREE.BoxGeometry(0.25, height, 0.3 + Math.random() * 0.25);
+    const _CANDY = CANDY_PALETTE;
     const isCoral = Math.random() > 0.4;
     const color = isCoral
-      ? new THREE.Color().setHSL(Math.random(), 0.5 + Math.random() * 0.35, 0.3 + Math.random() * 0.2)
-      : new THREE.Color().setHSL(0.08 + Math.random() * 0.08, 0.12 + Math.random() * 0.12, 0.25 + Math.random() * 0.15);
-    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+      ? new THREE.Color(_CANDY[Math.floor(Math.random() * _CANDY.length)])
+      // ? new THREE.Color().setHSL(Math.random(), 0.5 + Math.random() * 0.35, 0.3 + Math.random() * 0.2)
+      : new THREE.Color(ROCK_COLORS[Math.floor(Math.random() * ROCK_COLORS.length)]);
+      // : new THREE.Color().setHSL(0.08 + Math.random() * 0.08, 0.12 + Math.random() * 0.12, 0.25 + Math.random() * 0.15);
+    let mat;
+    if (isCoral) {
+      mat = _makeCandyMaterial(color.getHex());
+    } else {
+      const matOpts = { color, roughness: 0.8 };
+      if (DEBUG_EMISSIVE_INTENSITY > 0) { matOpts.emissive = color.clone(); matOpts.emissiveIntensity = DEBUG_EMISSIVE_INTENSITY; }
+      mat = new THREE.MeshStandardMaterial(matOpts);
+    }
     patchSceneMaterialWithCaustics(mat, 0.25);
     const coral = new THREE.Mesh(geo, mat);
     const undulate = _wallUndulate(z, seed) * side;
@@ -1610,8 +1663,10 @@ const REEF_FLOOR_MAX_X = WALL_X_OFFSET + 20;  // way out — fills the whole vis
 const REEF_Z_SPACING = 0.5;     // very tight along Z
 const REEF_PROPS_PER_ROW = 10;  // fewer but bigger
 
-// Coral hues for reef (warm tropical palette matching hero image)
-const REEF_CORAL_HUES = [0.95, 0.0, 0.03, 0.06, 0.08, 0.12, 0.8, 0.83];
+// Bright candy palette for reef
+const REEF_CANDY_COLORS = CANDY_PALETTE;
+// // Previous warm tropical coral palette (hero image):
+// const REEF_CORAL_HUES = [0.95, 0.0, 0.03, 0.06, 0.08, 0.12, 0.8, 0.83];
 
 function _randomiseReefProp(child) {
   // Randomise position within the reef zone
@@ -1630,24 +1685,28 @@ function _randomiseReefProp(child) {
   const baseScale = Math.random() < 0.3 ? (1.5 + Math.random() * 1.0) : (1.0 + Math.random() * 0.5);
   child.scale.set(baseScale, baseScale, baseScale);
 
-  // Re-tint materials
+  // Re-tint materials — coral gets toon/cel, rock stays standard
   child.traverse(c => {
-    if (c.isMesh && c.material && c.material.color) {
+    if (c.isMesh && c.material) {
       const isCoral = Math.random() > 0.3;
+      const hex = isCoral
+        ? REEF_CANDY_COLORS[Math.floor(Math.random() * REEF_CANDY_COLORS.length)]
+        : ROCK_COLORS[Math.floor(Math.random() * ROCK_COLORS.length)];
       if (isCoral) {
-        const hue = REEF_CORAL_HUES[Math.floor(Math.random() * REEF_CORAL_HUES.length)];
-        c.material.color.setHSL(
-          hue + (Math.random() - 0.5) * 0.04,
-          0.55 + Math.random() * 0.35,
-          0.45 + Math.random() * 0.2
-        );
+        c.material = _makeCandyMaterial(hex);
+        patchSceneMaterialWithCaustics(c.material, 0.2);
       } else {
-        c.material.color.setHSL(
-          0.08 + Math.random() * 0.08,
-          0.1 + Math.random() * 0.15,
-          0.3 + Math.random() * 0.15
-        );
+        c.material = c.material.clone();
+        c.material.color.setHex(hex);
+        if (DEBUG_EMISSIVE_INTENSITY > 0) {
+          c.material.emissive = new THREE.Color(hex);
+          c.material.emissiveIntensity = DEBUG_EMISSIVE_INTENSITY;
+        } else {
+          c.material.emissive = new THREE.Color(0x000000);
+          c.material.emissiveIntensity = 0;
+        }
       }
+      c.material.needsUpdate = true;
     }
   });
 }
@@ -1697,11 +1756,18 @@ function _buildReefFloorFallbackSlab() {
 
     const isCoral = Math.random() > 0.3;
     const color = isCoral
-      ? new THREE.Color().setHSL(
-          REEF_CORAL_HUES[Math.floor(Math.random() * REEF_CORAL_HUES.length)],
-          0.5 + Math.random() * 0.35, 0.4 + Math.random() * 0.2)
-      : new THREE.Color().setHSL(0.08 + Math.random() * 0.08, 0.12, 0.3 + Math.random() * 0.1);
-    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+      ? new THREE.Color(REEF_CANDY_COLORS[Math.floor(Math.random() * REEF_CANDY_COLORS.length)])
+      // ? new THREE.Color().setHSL(REEF_CORAL_HUES[...], 0.5 + Math.random() * 0.35, 0.4 + Math.random() * 0.2)
+      : new THREE.Color(ROCK_COLORS[Math.floor(Math.random() * ROCK_COLORS.length)]);
+      // : new THREE.Color().setHSL(0.08 + Math.random() * 0.08, 0.12, 0.3 + Math.random() * 0.1);
+    let mat;
+    if (isCoral) {
+      mat = _makeCandyMaterial(color.getHex());
+    } else {
+      const matOpts2 = { color, roughness: 0.8 };
+      if (DEBUG_EMISSIVE_INTENSITY > 0) { matOpts2.emissive = color.clone(); matOpts2.emissiveIntensity = DEBUG_EMISSIVE_INTENSITY; }
+      mat = new THREE.MeshStandardMaterial(matOpts2);
+    }
     patchSceneMaterialWithCaustics(mat, 0.2);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x + (Math.random() - 0.5) * 0.3, h * 0.5 * scale - 1.5, z);
@@ -1797,11 +1863,10 @@ function _buildOuterFallbackSlab() {
     const z = -Math.random() * OUTER_SLAB_LEN;
     const s = 1.5 + Math.random() * 3.0;
     const geo = new THREE.BoxGeometry(s * 0.4, s, s * 0.5);
-    const color = new THREE.Color().setHSL(
-      0.55 + Math.random() * 0.1,
-      0.15 + Math.random() * 0.15,
-      0.12 + Math.random() * 0.1
-    );
+    const _OC = CANDY_PALETTE;
+    // Darkened candy colours for distant outer scatter
+    const color = new THREE.Color(_OC[Math.floor(Math.random() * _OC.length)]).multiplyScalar(0.4);
+    // // Previous: new THREE.Color().setHSL(0.55 + Math.random() * 0.1, 0.15 + Math.random() * 0.15, 0.12 + Math.random() * 0.1);
     const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
     patchSceneMaterialWithCaustics(mat, 0.15);
     const mesh = new THREE.Mesh(geo, mat);
@@ -2149,8 +2214,8 @@ function createChunkFromProps(gapLane) {
           );
           prop.rotation.x += (Math.random() - 0.5) * 0.4;
           prop.rotation.z += (Math.random() - 0.5) * 0.3;
-          // Random scale boost for variety
-          prop.scale.multiplyScalar(0.8 + Math.random() * 0.8);
+          // Lane obstacles: doubled min size (was 0.8–1.6, now 1.4–1.6)
+          prop.scale.multiplyScalar(1.4 + Math.random() * 0.2);
           group.add(prop);
         }
       } else {
@@ -2163,7 +2228,9 @@ function createChunkFromProps(gapLane) {
         ];
         const geo = geos[Math.floor(Math.random() * geos.length)];
         const color = new THREE.Color().setHSL(Math.random() * 0.2, 0.5, 0.3 + Math.random() * 0.15);
-        const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+        const fbMatOpts = { color, roughness: 0.8 };
+        if (DEBUG_EMISSIVE_INTENSITY > 0) { fbMatOpts.emissive = color.clone(); fbMatOpts.emissiveIntensity = DEBUG_EMISSIVE_INTENSITY; }
+        const mat = new THREE.MeshStandardMaterial(fbMatOpts);
         patchSceneMaterialWithCaustics(mat, 0.25);
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.set(
@@ -2180,14 +2247,14 @@ function createChunkFromProps(gapLane) {
   return group;
 }
 
-let nextCoralSpawn = 2;
-let nextKrillSpawn = 1;
+let nextCoralSpawn = 0.5;
+let nextKrillSpawn = 0.3;
 let nextPredatorSpawn = 15;
 
-function spawnCoral() {
+function spawnCoral(spawnZ = -50) {
   const gapLane = Math.floor(Math.random() * 3);
   const chunk = createChunkFromProps(gapLane);
-  chunk.position.z = -50;
+  chunk.position.z = spawnZ;
   // Shadow under the obstacle chunk
   const obsShadow = createShadowBlob(2.5);
   obsShadow.position.y = -1.48;
@@ -2196,7 +2263,7 @@ function spawnCoral() {
   obstacles.push(chunk);
 }
 
-function spawnKrill() {
+function spawnKrill(spawnZ = -50) {
   const lane = Math.floor(Math.random() * 3);
   const geo = new THREE.SphereGeometry(0.12, 6, 6);
   const mat = new THREE.MeshStandardMaterial({
@@ -2207,7 +2274,7 @@ function spawnKrill() {
   krill.position.set(
     CONFIG.lanes.positions[lane] + (Math.random() - 0.5) * 0.5,
     Math.random() * 0.5,
-    -50
+    spawnZ
   );
   krill.userData = { lane, bobPhase: Math.random() * Math.PI * 2 };
   // Tiny shadow blob
@@ -2823,8 +2890,11 @@ function showDeathScreen() {
     setTimeout(() => { nameEl.focus(); nameEl.select(); }, 100);
     document.getElementById('rank-display').style.display = 'none';
   } else {
+    // Always show name entry so every run gets submitted to the server
     newHighEl.style.display = 'none';
-    nameWrap.style.display = 'none';
+    nameWrap.style.display = 'block';
+    nameEl.value = highScoreManager.getPlayerName();
+    setTimeout(() => { nameEl.focus(); nameEl.select(); }, 100);
     const rank = highScoreManager.getRank(state.score);
     if (rank <= 20) {
       document.getElementById('rank-display').textContent = `Rank: #${rank}`;
@@ -2938,8 +3008,8 @@ function returnToMenu() {
     shakeIntensity: 0,
   });
 
-  nextCoralSpawn = 2;
-  nextKrillSpawn = 1;
+  nextCoralSpawn = 0.5;
+  nextKrillSpawn = 0.3;
   nextPredatorSpawn = 10;
   lastPredatorName = '';
   swimSpeedBoost = 0;
@@ -2987,8 +3057,8 @@ function resetGame() {
   // Start game music
   if (audioEnabled) audioManager.playMusic('music_standard');
 
-  nextCoralSpawn = 2;
-  nextKrillSpawn = 1;
+  nextCoralSpawn = 0.5;
+  nextKrillSpawn = 0.3;
   nextPredatorSpawn = 10;
   lastPredatorName = '';
   swimSpeedBoost = 0;
@@ -3027,6 +3097,13 @@ function resetGame() {
   document.getElementById('hud').style.display = 'block';
 
   jackGroup.position.set(0, 0.5, -1);
+
+  // Pre-seed krill and obstacles so the world isn't empty at start
+  spawnKrill(-15);
+  spawnKrill(-22);
+  spawnKrill(-30);
+  spawnCoral(-18);
+  spawnCoral(-28);
 }
 
 // ─────────────────────────────────────────────
@@ -3323,8 +3400,70 @@ envDebug.innerHTML = `
   <input type="range" id="dbg-fog-far" min="0" max="35" step="0.05" value="${scene.fog.far}"
     style="width:120px;vertical-align:middle;accent-color:#0f0;">
 </label>
+<label style="color:#0f0;font:11px monospace;display:block;margin:3px 0;">
+  Emissive: <span id="dbg-emissive-val">0.05</span>
+  <input type="range" id="dbg-emissive" min="0" max="1" step="0.05" value="0.05"
+    style="width:120px;vertical-align:middle;accent-color:#0f0;">
+</label>
 `;
 debugHud.appendChild(envDebug);
+
+// ─── Colour Palette Reference ───
+const paletteDebug = document.createElement('div');
+paletteDebug.style.cssText = 'margin-top:6px;border-top:1px solid #0f03;padding-top:4px;';
+function _swatch(hex, label) {
+  const h = hex.toString(16).padStart(6, '0').toUpperCase();
+  return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
+    <span style="display:inline-block;width:14px;height:14px;background:#${h};border:1px solid #0f06;border-radius:2px;flex-shrink:0;"></span>
+    <span style="color:#0f0;font:11px monospace;">#${h} <span style="color:#0f08;">${label}</span></span>
+  </div>`;
+}
+function _editableSwatch(id, hex, label) {
+  const h = '#' + hex.toString(16).padStart(6, '0');
+  return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
+    <input type="color" id="${id}" value="${h}" style="width:18px;height:18px;border:1px solid #0f06;border-radius:2px;padding:0;background:none;cursor:pointer;flex-shrink:0;">
+    <span style="color:#0f0;font:11px monospace;" id="${id}-hex">${h.toUpperCase().slice(1)}</span>
+    <span style="color:#0f08;font:10px monospace;">${label}</span>
+  </div>`;
+}
+paletteDebug.innerHTML = `
+<div style="color:#0f0;font:bold 11px monospace;margin-bottom:3px;">── Colour Palette ──</div>
+<div style="color:#0f08;font:10px monospace;margin-bottom:2px;">Water / Fog</div>
+${_swatch(0x19AAFF, 'water/fog')}
+<div style="color:#0f08;font:10px monospace;margin:4px 0 2px;">Sand</div>
+${_swatch(0xFFFF7F, 'sand base')}
+<div style="color:#0f08;font:10px monospace;margin:4px 0 2px;">Candy (coral) — click to edit</div>
+${CANDY_PALETTE.map((c, i) => _editableSwatch('dbg-candy-' + i, c, CANDY_LABELS[i])).join('')}
+<div style="color:#0f08;font:10px monospace;margin:4px 0 2px;">Rock</div>
+${[0xF2DD99, 0x84B2A5].map(c => _swatch(c, '')).join('')}
+<div style="color:#0f08;font:10px monospace;margin:4px 0 2px;">Krill</div>
+${_swatch(0xFF9944, 'color')}
+${_swatch(0xFF7722, 'emissive')}
+`;
+debugHud.appendChild(paletteDebug);
+
+// Candy colour picker handlers — update palette + live-retint all matching scene materials
+CANDY_PALETTE.forEach((_, i) => {
+  document.getElementById('dbg-candy-' + i).addEventListener('input', (e) => {
+    const newHex = parseInt(e.target.value.slice(1), 16);
+    const oldHex = CANDY_PALETTE[i];
+    CANDY_PALETTE[i] = newHex;
+    document.getElementById('dbg-candy-' + i + '-hex').textContent = e.target.value.toUpperCase().slice(1);
+    // Live-retint existing scene objects with the old colour
+    scene.traverse(child => {
+      if (!child.isMesh || !child.material || !child.material.color) return;
+      // Skip Jack & predators
+      let node = child; while (node) { if (node === jackGroup) return; node = node.parent; }
+      for (const pred of predators) { let n = child; while (n) { if (n === pred) return; n = n.parent; } }
+      const curHex = child.material.color.getHex();
+      if (curHex === oldHex) {
+        child.material.color.setHex(newHex);
+        if (child.material.emissive) child.material.emissive.setHex(newHex);
+        child.material.needsUpdate = true;
+      }
+    });
+  });
+});
 
 // Sand colour picker — regenerate colour map with new trough colour
 const _sandColState = { r: 255, g: 255, b: 127 };
@@ -3374,6 +3513,38 @@ document.getElementById('dbg-fog-far').addEventListener('input', (e) => {
   const v = parseFloat(e.target.value);
   document.getElementById('dbg-fog-far-val').textContent = v.toFixed(1);
   scene.fog.far = v;
+});
+
+// Emissive intensity slider — live-patches all scene materials (except Jack & predators)
+document.getElementById('dbg-emissive').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  DEBUG_EMISSIVE_INTENSITY = v;
+  document.getElementById('dbg-emissive-val').textContent = v.toFixed(2);
+  // Walk all scene objects, skip Jack group and predators
+  scene.traverse(child => {
+    if (!child.isMesh || !child.material || !child.material.color) return;
+    // Skip Jack
+    let node = child;
+    while (node) { if (node === jackGroup) return; node = node.parent; }
+    // Skip predators
+    for (const pred of predators) {
+      let n2 = child; while (n2) { if (n2 === pred) return; n2 = n2.parent; }
+    }
+    // Skip krill
+    if (krillItems.includes(child)) return;
+    // Skip debug meshes, shadow blobs, sand plane (but not toon materials)
+    if (child.material.transparent && child.material.opacity !== undefined && child.material.opacity < 1) return;
+
+    const isToon = child.material.isMeshToonMaterial;
+    if (v > 0 || isToon) {
+      child.material.emissive = child.material.color.clone();
+      child.material.emissiveIntensity = isToon ? Math.max(0.15, v) : v;
+    } else {
+      child.material.emissive = new THREE.Color(0x000000);
+      child.material.emissiveIntensity = 0;
+    }
+    child.material.needsUpdate = true;
+  });
 });
 
 function clearDebugMeshes() {
