@@ -813,6 +813,132 @@ class HighScoreManager {
 const highScoreManager = new HighScoreManager();
 
 // ─────────────────────────────────────────────
+// ANALYTICS TRACKER
+// ─────────────────────────────────────────────
+class Analytics {
+  constructor(apiBase = 'https://api.babyjackadventures.com') {
+    this.apiBase = apiBase;
+    this.sessionId = this._generateId();
+    this.queue = [];
+    this.flushTimer = null;
+    this.gameStartTime = 0;
+    this.runCount = 0;
+
+    // Engagement: track previous sessions for returning-visitor detection
+    const prev = parseInt(localStorage.getItem('bjk_sessionCount') || '0');
+    this.previousSessions = prev;
+    this.isReturning = prev > 0;
+    localStorage.setItem('bjk_sessionCount', String(prev + 1));
+
+    // Track last visit for session frequency
+    const lastVisit = localStorage.getItem('bjk_lastVisit');
+    this.daysSinceLastVisit = lastVisit
+      ? Math.floor((Date.now() - parseInt(lastVisit)) / 86400000)
+      : -1;
+    localStorage.setItem('bjk_lastVisit', String(Date.now()));
+
+    // Device detection
+    this.deviceType = this._detectDevice();
+
+    // Start session on the server
+    this._startSession();
+
+    // Flush queued events periodically and on page unload
+    this.flushTimer = setInterval(() => this.flush(), 15000);
+    window.addEventListener('beforeunload', () => {
+      this.track('session_end', { runs: this.runCount });
+      this.flush(true);
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.flush(true);
+    });
+  }
+
+  _generateId() {
+    return 'bjk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+  }
+
+  _detectDevice() {
+    const ua = navigator.userAgent;
+    if (/iPad|tablet/i.test(ua)) return 'tablet';
+    if (/iPhone|iPod|Android.*Mobile|webOS|BlackBerry/i.test(ua)) return 'mobile';
+    return 'desktop';
+  }
+
+  _startSession() {
+    const payload = {
+      session_id: this.sessionId,
+      referrer: document.referrer || '',
+      screen_width: window.screen.width,
+      screen_height: window.screen.height,
+      device_type: this.deviceType,
+      is_returning: this.isReturning,
+      previous_sessions: this.previousSessions,
+    };
+    fetch(this.apiBase + '/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  }
+
+  // Queue an event (flushed in batches)
+  track(type, data = {}) {
+    this.queue.push({
+      type,
+      data,
+      game_time: this.gameStartTime > 0 ? (performance.now() / 1000 - this.gameStartTime) : 0,
+      timestamp: new Date().toISOString(),
+    });
+    // Auto-flush if queue gets large
+    if (this.queue.length >= 20) this.flush();
+  }
+
+  // Send queued events to server
+  flush(sync = false) {
+    if (this.queue.length === 0) return;
+    const events = this.queue.splice(0, 100);
+    const payload = JSON.stringify({ session_id: this.sessionId, events });
+    if (sync && navigator.sendBeacon) {
+      navigator.sendBeacon(this.apiBase + '/event', payload);
+    } else {
+      fetch(this.apiBase + '/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      }).catch(() => {});
+    }
+  }
+
+  // Convenience: call when a new game run starts
+  gameStart() {
+    this.runCount++;
+    this.gameStartTime = performance.now() / 1000;
+    this.track('game_start', { run_number: this.runCount });
+  }
+
+  // Convenience: call when the game run ends (death / sarah found)
+  gameEnd(state) {
+    const duration = this.gameStartTime > 0 ? (performance.now() / 1000 - this.gameStartTime) : 0;
+    this.track('game_end', {
+      score: Math.floor(state.score),
+      level: state.level,
+      krill: state.krillCount,
+      distance: Math.floor(state.distance),
+      sarah_found: state.sarahFound,
+      health: Math.floor(state.health),
+      duration: Math.round(duration),
+      predator_encounters: state.predatorEncounters,
+      predator_dodges: state.consecutivePredatorDodges,
+      completed_bloom: state.completedBloom,
+    });
+    this.flush();
+  }
+}
+
+const analytics = new Analytics();
+
+// ─────────────────────────────────────────────
 // GAME CONFIG
 // ─────────────────────────────────────────────
 const CONFIG = {
@@ -2612,6 +2738,7 @@ function enterBloom() {
   state.inBloom = true;
   bloomKrillTarget = 30 + Math.floor(state.level * 3);
   document.getElementById('bloom-indicator').textContent = 'KRILL BLOOM!';
+  analytics.track('bloom_start', { level: state.level, krill_target: bloomKrillTarget });
   // Camera zoom is handled by updateCamera checking state.inBloom
 }
 
@@ -2641,8 +2768,10 @@ function endBloom(success) {
     state.health = Math.min(CONFIG.health.max, state.health + CONFIG.health.bloomHeal);
     state.completedBloom = true;
     triggerScreenShake(0.15);
+    analytics.track('bloom_complete', { level: state.level, success: true });
   } else {
     state.health -= CONFIG.health.collisionDamage * 0.5;
+    analytics.track('bloom_complete', { level: state.level, success: false });
   }
 }
 
@@ -2724,6 +2853,7 @@ function checkCollisions() {
       state.predatorEncounters++;
       state.consecutivePredatorDodges = 0;
       if (audioEnabled) audioManager.play('predator_hit');
+      analytics.track('predator_hit', { predator: pred.userData.name, health: Math.floor(state.health), level: state.level });
       // Remove predator after hit
       if (pred.userData.shadow) scene.remove(pred.userData.shadow);
       scene.remove(pred);
@@ -2770,6 +2900,14 @@ function checkLevelUp() {
     if (audioEnabled) audioManager.play('level_up');
     showLevelTransition(state.level);
 
+    // Analytics: track level up
+    analytics.track('level_up', {
+      level: state.level,
+      score: Math.floor(state.score),
+      krill: state.krillCount,
+      distance: Math.floor(state.distance),
+    });
+
     // Visual milestones
     if (state.level === 10) {
       // Night mode — ONE level only
@@ -2799,6 +2937,7 @@ function updateWinState() {
   if (state.level >= CONFIG.bond.winStateMinLevel && state.bond >= 1.0) {
     state.winState = true;
     if (!wasWinState) {
+      analytics.track('win_state_reached', { level: state.level, score: Math.floor(state.score), bond: state.bond });
       if (audioEnabled) audioManager.play('win_state');
       if (audioEnabled) audioManager.playMusic('music_winstate');
       document.getElementById('win-state-indicator').style.display = 'block';
@@ -2830,6 +2969,9 @@ function showLevelTransition(level) {
 function triggerDeath() {
   state.dead = true;
   state.playing = false;
+
+  // Analytics: track game end
+  analytics.gameEnd(state);
 
   if (state.winState) {
     if (audioEnabled) audioManager.play('sarah_found');
@@ -3059,6 +3201,9 @@ function resetGame() {
 
   // Start game music
   if (audioEnabled) audioManager.playMusic('music_standard');
+
+  // Analytics: track new game run
+  analytics.gameStart();
 
   nextCoralSpawn = 0.5;
   nextKrillSpawn = 0.3;
@@ -3904,6 +4049,7 @@ function _setActiveHsTab(tab) {
 }
 
 async function showHighScoresOverlay() {
+  analytics.track('view_leaderboard');
   const overlay = document.getElementById('highscore-overlay');
   _hsOnlineScores = null;
   _hsActiveTab = 'online';
