@@ -373,6 +373,9 @@ html, body {
 
 <canvas id="game-canvas"></canvas>
 
+<!-- A/B look badge — shows which visual build is active; press V to flip -->
+<div id="look-badge" style="position:fixed;left:10px;bottom:10px;z-index:60;font:600 11px/1.4 system-ui,sans-serif;letter-spacing:0.04em;color:rgba(255,255,255,0.85);background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:5px 9px;pointer-events:none;user-select:none;backdrop-filter:blur(4px);"></div>
+
 <!-- HUD -->
 <div id="hud">
   <div id="health-bar-container"><div id="health-bar"></div></div>
@@ -1061,6 +1064,40 @@ const ROCK_COLORS = [0xF2DD99, 0x84B2A5];
 const CANDY_PALETTE = [0x04F685, 0xFF75F4, 0x8C66FF, 0xE845C5, 0xFBFF00, 0x53D941];
 const CANDY_LABELS = ['orange', 'pink', 'purple', 'green', 'yellow', 'mint'];
 
+// ─────────────────────────────────────────────
+// A/B FEATURE FLAGS — readability + cohesion pass
+// New look is ON by default. Add ?legacy (or ?v=1) to the URL to restore the
+// original rainbow build. Press V in-game to flip and reload for instant compare.
+// ─────────────────────────────────────────────
+const _urlParams = new URLSearchParams(location.search);
+const FEATURES = {
+  newLook: !(_urlParams.has('legacy') || _urlParams.get('v') === '1'),
+};
+
+// Cohesive reef DECORATION palette — warm corals / pinks / purples that read as a
+// real reef and pop against the blue water, without the clashing full-spectrum noise
+// of the original candy set. Used for walls, branches, reef floor and scatter.
+const REEF_DECOR_PALETTE = [0xFF8FA8, 0xF56F94, 0xE57CC6, 0xC98BFF, 0xFFA987, 0xB983FF];
+// Reserved HAZARD palette — hot, high-contrast tones used ONLY for collidable lane
+// obstacles. Never appears in decoration, so "the wall" always reads differently
+// from the scenery behind it.
+const HAZARD_PALETTE = [0xFFC93C, 0xFF7A1A, 0xFF466B];
+
+function _decorCoralHex() {
+  const p = FEATURES.newLook ? REEF_DECOR_PALETTE : CANDY_PALETTE;
+  return p[Math.floor(Math.random() * p.length)];
+}
+function _hazardCoralHex() {
+  const p = FEATURES.newLook ? HAZARD_PALETTE : CANDY_PALETTE;
+  return p[Math.floor(Math.random() * p.length)];
+}
+
+// A/B mode badge
+{
+  const badge = document.getElementById('look-badge');
+  if (badge) badge.textContent = (FEATURES.newLook ? '✨ NEW LOOK' : '◻ LEGACY') + ' · press V';
+}
+
 // 3-tone cel/toon gradient map for candy materials
 // Creates a tiny 3-pixel RGBA texture: dark → mid → bright, stepped via NearestFilter
 const _toonGradData = new Uint8Array([
@@ -1546,6 +1583,36 @@ floor.rotation.x = -Math.PI / 2;
 floor.position.y = -1.5;
 scene.add(floor);
 
+// ── LANE FRAMING ──────────────────────────────
+// Two faint glowing strips along the lane dividers so the player can always read
+// the three lanes (spec: "lanes are visually distinct"). Static in X, long in Z so
+// they're always visible; subtle enough not to fight the reef. newLook only.
+if (FEATURES.newLook) {
+  const laneStripTex = (() => {
+    const c = document.createElement('canvas'); c.width = 8; c.height = 256;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, 'rgba(170,235,255,0)');
+    grad.addColorStop(0.5, 'rgba(170,235,255,0.5)');
+    grad.addColorStop(1, 'rgba(170,235,255,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 8, 256);
+    return new THREE.CanvasTexture(c);
+  })();
+  const laneW = CONFIG.lanes.width;
+  // Dividers sit halfway between adjacent lane centres.
+  for (const dx of [-laneW / 2, laneW / 2]) {
+    const stripGeo = new THREE.PlaneGeometry(0.12, 70);
+    const stripMat = new THREE.MeshBasicMaterial({
+      map: laneStripTex, transparent: true, opacity: 0.35,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const strip = new THREE.Mesh(stripGeo, stripMat);
+    strip.rotation.x = -Math.PI / 2;
+    strip.position.set(dx, -1.47, -20);
+    scene.add(strip);
+  }
+}
+
 // ─────────────────────────────────────────────
 // SHADOW BLOB — reusable soft circle for ground shadows
 // ─────────────────────────────────────────────
@@ -1692,17 +1759,10 @@ function cloneProp(key) {
         child.material.color.getHSL(hsl);
         const isCoral = key.startsWith('coral');
         if (isCoral) {
-          // Bright candy palette
-          const CANDY_COLORS = CANDY_PALETTE;
-          // // Previous warm tropical coral palette (hero image):
-          // const coralHues = [0.95, 0.0, 0.03, 0.06, 0.08, 0.12, 0.8, 0.83];
-          // const baseHue = coralHues[Math.floor(Math.random() * coralHues.length)];
-          // child.material.color.setHSL(
-          //   baseHue + (Math.random() - 0.5) * 0.04,
-          //   0.55 + Math.random() * 0.35,
-          //   0.45 + Math.random() * 0.2
-          // );
-          const cc = CANDY_COLORS[Math.floor(Math.random() * CANDY_COLORS.length)];
+          // Decoration coral colour — cohesive palette under newLook, candy in legacy.
+          // (Obstacle chunks re-tint to the HAZARD palette afterwards; reef floor and
+          //  outer scatter override this with their own _decorCoralHex picks.)
+          const cc = _decorCoralHex();
           // Replace with toon material for cel-shaded 3-tone look
           child.material = _makeCandyMaterial(cc);
           patchSceneMaterialWithCaustics(child.material, 0.3);
@@ -1789,11 +1849,9 @@ function _buildFallbackSlab(x, seed) {
   for (let z = 0; z > -WALL_SLAB_LEN; z -= WALL_SPACING) {
     const height = Math.random() * 0.6 + 0.3;
     const geo = new THREE.BoxGeometry(0.25, height, 0.3 + Math.random() * 0.25);
-    const _CANDY = CANDY_PALETTE;
     const isCoral = Math.random() > 0.4;
     const color = isCoral
-      ? new THREE.Color(_CANDY[Math.floor(Math.random() * _CANDY.length)])
-      // ? new THREE.Color().setHSL(Math.random(), 0.5 + Math.random() * 0.35, 0.3 + Math.random() * 0.2)
+      ? new THREE.Color(_decorCoralHex())
       : new THREE.Color(ROCK_COLORS[Math.floor(Math.random() * ROCK_COLORS.length)]);
       // : new THREE.Color().setHSL(0.08 + Math.random() * 0.08, 0.12 + Math.random() * 0.12, 0.25 + Math.random() * 0.15);
     let mat;
@@ -1883,7 +1941,7 @@ function _randomiseReefProp(child) {
     if (c.isMesh && c.material) {
       const isCoral = Math.random() > 0.3;
       const hex = isCoral
-        ? REEF_CANDY_COLORS[Math.floor(Math.random() * REEF_CANDY_COLORS.length)]
+        ? _decorCoralHex()
         : ROCK_COLORS[Math.floor(Math.random() * ROCK_COLORS.length)];
       if (isCoral) {
         c.material = _makeCandyMaterial(hex);
@@ -2389,8 +2447,52 @@ let sarahBoat = null;
 // ─────────────────────────────────────────────
 // CORAL CHUNK SYSTEM — uses GLB props with fallback
 // ─────────────────────────────────────────────
+// Soft radial glow texture for the safe-gap marker (drawn on the floor of the open lane).
+const _gapGlowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(120,255,200,0.9)');
+  grad.addColorStop(0.5, 'rgba(80,230,180,0.35)');
+  grad.addColorStop(1, 'rgba(80,230,180,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  return t;
+})();
+
+// A gently pulsing disc of light on the floor of the gap lane — telegraphs the safe
+// path so obstacles never feel like an unfair wall. newLook only.
+function _makeGapMarker(laneX) {
+  const geo = new THREE.PlaneGeometry(CONFIG.lanes.width * 0.85, CONFIG.lanes.width * 0.85);
+  const mat = new THREE.MeshBasicMaterial({
+    map: _gapGlowTex, transparent: true, opacity: 0.55,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(laneX, -1.46, 0);
+  m.userData.isGapMarker = true;
+  return m;
+}
+
+// Re-skin a collidable obstacle prop so it reads as a HAZARD, distinct from the
+// decorative reef behind it: a single hot hazard colour per chunk + a strong
+// self-lit glow. newLook only — in legacy, obstacles keep their candy tint.
+function _emphasizeObstacleProp(prop, hazardHex) {
+  if (!FEATURES.newLook) return;
+  prop.traverse(child => {
+    if (child.isMesh && child.material) {
+      child.material = _makeCandyMaterial(hazardHex);
+      child.material.emissiveIntensity = 0.5; // glow so it pops out of the scenery
+      patchSceneMaterialWithCaustics(child.material, 0.25);
+    }
+  });
+}
+
 function createChunkFromProps(gapLane) {
   const group = new THREE.Group();
+  // One hazard colour per chunk so a single obstacle reads as one coherent "wall".
+  const hazardHex = _hazardCoralHex();
   for (let i = 0; i < 3; i++) {
     if (i === gapLane) continue;
     // Place 1-3 props per blocked lane
@@ -2409,6 +2511,7 @@ function createChunkFromProps(gapLane) {
           prop.rotation.z += (Math.random() - 0.5) * 0.3;
           // Lane obstacles: doubled min size (was 0.8–1.6, now 1.4–1.6)
           prop.scale.multiplyScalar(1.4 + Math.random() * 0.2);
+          _emphasizeObstacleProp(prop, hazardHex);
           group.add(prop);
         }
       } else {
@@ -2420,12 +2523,21 @@ function createChunkFromProps(gapLane) {
           new THREE.CylinderGeometry(0.2, 0.4, h, 6),
         ];
         const geo = geos[Math.floor(Math.random() * geos.length)];
-        const color = new THREE.Color().setHSL(Math.random() * 0.2, 0.5, 0.3 + Math.random() * 0.15);
-        const fbMatOpts = { color, roughness: 0.8 };
-        if (DEBUG_EMISSIVE_INTENSITY > 0) { fbMatOpts.emissive = color.clone(); fbMatOpts.emissiveIntensity = DEBUG_EMISSIVE_INTENSITY; }
-        const mat = new THREE.MeshStandardMaterial(fbMatOpts);
-        patchSceneMaterialWithCaustics(mat, 0.25);
-        const mesh = new THREE.Mesh(geo, mat);
+        let mesh;
+        if (FEATURES.newLook) {
+          // Hazard-tinted, glowing fallback obstacle so it still reads as collidable.
+          const mat = _makeCandyMaterial(hazardHex);
+          mat.emissiveIntensity = 0.5;
+          patchSceneMaterialWithCaustics(mat, 0.25);
+          mesh = new THREE.Mesh(geo, mat);
+        } else {
+          const color = new THREE.Color().setHSL(Math.random() * 0.2, 0.5, 0.3 + Math.random() * 0.15);
+          const fbMatOpts = { color, roughness: 0.8 };
+          if (DEBUG_EMISSIVE_INTENSITY > 0) { fbMatOpts.emissive = color.clone(); fbMatOpts.emissiveIntensity = DEBUG_EMISSIVE_INTENSITY; }
+          const mat = new THREE.MeshStandardMaterial(fbMatOpts);
+          patchSceneMaterialWithCaustics(mat, 0.25);
+          mesh = new THREE.Mesh(geo, mat);
+        }
         mesh.position.set(
           CONFIG.lanes.positions[i] + (Math.random() - 0.5) * 0.6,
           h / 2 - 1.5,
@@ -2452,6 +2564,10 @@ function spawnCoral(spawnZ = -50) {
   const obsShadow = createShadowBlob(2.5);
   obsShadow.position.y = -1.48;
   chunk.add(obsShadow);
+  // Telegraph the safe lane with a glowing floor marker (newLook only)
+  if (FEATURES.newLook) {
+    chunk.add(_makeGapMarker(CONFIG.lanes.positions[gapLane]));
+  }
   scene.add(chunk);
   obstacles.push(chunk);
 }
@@ -3912,6 +4028,15 @@ document.addEventListener('keydown', (e) => {
     toggleDebug();
     return;
   }
+  // V flips between the new look and the legacy (rainbow) look, reloading for A/B compare
+  if (e.key === 'v' || e.key === 'V') {
+    if (document.activeElement && document.activeElement.id === 'name-entry') return;
+    const url = new URL(location.href);
+    if (FEATURES.newLook) url.searchParams.set('legacy', '1');
+    else { url.searchParams.delete('legacy'); url.searchParams.delete('v'); }
+    location.href = url.toString();
+    return;
+  }
   // Spacebar starts/restarts from title or death screen (but not while typing a name)
   if (e.key === ' ') {
     if (document.activeElement && document.activeElement.id === 'name-entry') return; // let space type in name field
@@ -4342,6 +4467,12 @@ function update(time) {
     nextCoralSpawn = CONFIG.spawn.coralInterval + (Math.random() - 0.5) * CONFIG.spawn.coralVariance * 2;
     // Scale with level
     nextCoralSpawn *= Math.max(0.5, 1 - state.level * 0.03);
+    // Gentle on-ramp: the spec wants Levels 1-2 to be an open, sparse reef. Stretch
+    // the gaps early so first-time players can learn to read lanes before it tightens.
+    if (FEATURES.newLook) {
+      if (state.level <= 1) nextCoralSpawn *= 1.8;
+      else if (state.level === 2) nextCoralSpawn *= 1.4;
+    }
   }
 
   nextKrillSpawn -= dt;
@@ -4421,8 +4552,13 @@ function update(time) {
     }
   });
 
+  const gapPulse = 0.45 + 0.2 * Math.sin(elapsed * 4);
   obstacles.forEach((obs, i) => {
     obs.position.z += scrollDelta;
+    // Pulse the safe-gap marker so the eye is drawn to the open lane
+    for (const child of obs.children) {
+      if (child.userData.isGapMarker) child.material.opacity = gapPulse;
+    }
   });
   // Remove off-screen obstacles
   for (let i = obstacles.length - 1; i >= 0; i--) {
