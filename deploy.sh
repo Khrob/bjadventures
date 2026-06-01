@@ -1,45 +1,48 @@
 #!/bin/bash
 # Deploy Baby Jack Adventures
-# Copies the latest game build from docs/ and pushes to GitHub Pages
+# This repo IS the GitHub Pages source (CNAME -> babyjackadventures.com), so
+# deploying just means committing and pushing whatever is in this folder.
+# (It used to copy a build in from ../docs/ — that overwrote the live build with
+#  a stale copy, so that step has been removed.)
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SOURCE_DIR="$(dirname "$SCRIPT_DIR")/docs"
+cd "$SCRIPT_DIR"
 
 echo "🦈 Baby Jack Adventures — Deploy"
 echo "================================"
 
-# Check source exists
-if [ ! -f "$SOURCE_DIR/index.html" ]; then
-  echo "❌ Can't find $SOURCE_DIR/index.html"
+# Must be a git repo
+if [ ! -d .git ] && ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "❌ Not a git repository: $SCRIPT_DIR"
   exit 1
 fi
 
-# Copy game files
-cp "$SOURCE_DIR/index.html" "$SCRIPT_DIR/index.html"
-cp "$SOURCE_DIR/"*.glb "$SCRIPT_DIR/" 2>/dev/null
-
-echo "✓ Copied game files from docs/"
-
-cd "$SCRIPT_DIR"
-
-# Check for changes
-if git diff --quiet && git diff --cached --quiet; then
-  echo "No changes to deploy."
-  exit 0
+# Warn if not on main (GitHub Pages serves main)
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$BRANCH" != "main" ]; then
+  echo "⚠️  You're on '$BRANCH', not 'main' (GitHub Pages serves main)."
+  read -p "   Continue anyway? [y/N]: " GO
+  [ "$GO" = "y" ] || [ "$GO" = "Y" ] || { echo "Aborted."; exit 1; }
 fi
 
-# Show what changed
-echo ""
-git diff --stat
-echo ""
+# Anything to deploy?
+if git diff --quiet && git diff --cached --quiet; then
+  echo "No local changes."
+else
+  echo ""
+  git status --short
+  echo ""
+  read -p "Commit message (or Enter for 'Update game build'): " MSG
+  MSG="${MSG:-Update game build}"
+  git add -A
+  git commit -m "$MSG"
+fi
 
-# Commit and push
-read -p "Commit message (or Enter for 'Update game build'): " MSG
-MSG="${MSG:-Update game build}"
-
-git add -A
-git commit -m "$MSG"
-git push
+# Push (no-op if already up to date)
+echo ""
+echo "⬆️  Pushing to origin/$BRANCH..."
+git push origin "$BRANCH"
 
 echo ""
 echo "🌊 Deployed to babyjackadventures.com"
