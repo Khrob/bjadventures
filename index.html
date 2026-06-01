@@ -1,3 +1,67 @@
+<!--
+  ✨ Hi! You found the secret code! ✨
+
+  Feel free to have a look around and learn about how this game was made.
+  Everything you see — the swimming whale shark, the coral canyons, the
+  shimmering light shafts — is built right here in this single file.
+
+  HERE'S HOW IT ALL WORKS:
+  ========================
+
+  🎮 THE ENGINE
+  This game uses Three.js, a JavaScript library that draws 3D graphics
+  in your browser using WebGL. There's no game engine like Unity or Unreal
+  here — just code, maths, and a lot of creativity.
+
+  🦈 THE CHARACTERS
+  Baby Jack (the whale shark) is a 3D model loaded from a .glb file, which
+  was made in Blender. His spots are generated with code using something
+  called Poisson-disk sampling — a clever algorithm that places dots
+  randomly but keeps them evenly spaced, just like real whale shark spots.
+  His swimming animation is all done with maths (sine waves!) — no
+  motion capture or animation software needed.
+
+  🪸 THE WORLD
+  The coral canyon is "infinite" — it's not actually endless, but old
+  chunks of scenery get recycled and placed ahead of you as you swim
+  forward. This trick is called "object pooling" and it means the game
+  can run forever without running out of memory.
+
+  The coral and rocks are 3D models too, but their colours use a technique
+  called "cel-shading" (or toon shading) — that's what gives them that
+  cartoon look with distinct bands of light and shadow instead of smooth
+  gradients.
+
+  🌊 THE OCEAN
+  The underwater feeling comes from layering lots of small effects:
+  - Fog that fades distant objects into blue
+  - Tiny floating particles (plankton and bubbles)
+  - Light shafts streaming down from the surface
+  - A "caustic" pattern (those wobbly light patches you see on pool floors)
+  - Screen shake when you bump into things
+
+  🎵 THE SOUND
+  All the sound effects are generated in real-time using the Web Audio API.
+  That means there are no sound files — the code creates every boop, swoosh
+  and splash by combining simple waveforms (sine, triangle, sawtooth) and
+  shaping them with volume envelopes. It's basically a tiny synthesiser!
+
+  🏆 HIGH SCORES
+  Your scores are saved locally in your browser (using localStorage) and
+  also sent to an online leaderboard so you can compete with other players
+  around the world.
+
+  💡 WANT TO LEARN MORE?
+  If any of this sounds cool, search for:
+  - "Three.js journey" — an amazing course for learning 3D web graphics
+  - "The Coding Train" on YouTube — brilliant creative coding tutorials
+  - "MDN Web Audio API" — learn how to make sounds with code
+  - "Blender beginner tutorial" — to start making your own 3D models
+
+  This game was made with ❤️ for Baby Jack.
+
+  Happy exploring!
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
