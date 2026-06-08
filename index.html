@@ -381,7 +381,7 @@ html, body {
 <canvas id="game-canvas"></canvas>
 
 <!-- A/B look badge — shows which visual build is active; press V to flip -->
-<div id="look-badge" style="position:fixed;left:10px;bottom:10px;z-index:60;font:600 11px/1.4 system-ui,sans-serif;letter-spacing:0.04em;color:rgba(255,255,255,0.85);background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:5px 9px;pointer-events:none;user-select:none;backdrop-filter:blur(4px);"></div>
+<div id="look-badge" style="display:none;position:fixed;left:10px;bottom:10px;z-index:60;font:600 11px/1.4 system-ui,sans-serif;letter-spacing:0.04em;color:rgba(255,255,255,0.85);background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:5px 9px;pointer-events:none;user-select:none;backdrop-filter:blur(4px);"></div>
 
 <!-- HUD -->
 <div id="hud">
@@ -1111,10 +1111,15 @@ function _speedDamageMult() {
   return Math.min(2.2, state.effectiveSpeed / CONFIG.scroll.baseSpeed);
 }
 
-// A/B mode badge — shows LOOK (toggle V) and FEEL (toggle B)
+// A/B mode badge — hidden in the live build. Only shown when actively comparing,
+// i.e. a look/feel/compare URL param is present (also true after pressing V or B,
+// which reload with a param). Players never see it; the V/B hotkeys still work.
 {
   const badge = document.getElementById('look-badge');
-  if (badge) {
+  const comparing = ['legacy', 'legacyfeel', 'v', 'feel', 'compare']
+    .some(p => _urlParams.has(p));
+  if (badge && comparing) {
+    badge.style.display = 'block';
     badge.innerHTML =
       (FEATURES.newLook ? '✨ NEW LOOK' : '◻ LEGACY LOOK') + ' <span style="opacity:0.6">V</span>'
       + ' &nbsp;·&nbsp; '
