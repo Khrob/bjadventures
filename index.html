@@ -362,11 +362,18 @@ html, body {
 
 /* Level transition */
 #level-transition {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  font-size: 28px; color: #88ccff; display: none; z-index: 15;
-  pointer-events: none; text-shadow: 0 0 30px rgba(100,200,255,0.6);
-  letter-spacing: 4px;
+  position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 56px; font-weight: 800; color: #ffffff; display: none; z-index: 15;
+  pointer-events: none; white-space: nowrap;
+  /* White fill with a dark teal edge + cyan glow so it reads on the bright water */
+  text-shadow:
+    0 0 3px rgba(8,40,66,0.95),
+    1.5px 1.5px 0 rgba(8,40,66,0.75),
+    -1.5px 1.5px 0 rgba(8,40,66,0.75),
+    0 0 26px rgba(120,220,255,0.85);
+  letter-spacing: 2px; font-family: system-ui, -apple-system, sans-serif;
 }
+#level-transition span { display: inline-block; will-change: transform, opacity; }
 </style>
 </head>
 <body>
@@ -1034,6 +1041,7 @@ let state = {
   level: 1, distance: 0, score: 0, krillCount: 0,
   lastEatTime: 0, timeSinceEat: 0,
   scrollSpeed: CONFIG.scroll.baseSpeed,
+  throttle: 0, effectiveSpeed: CONFIG.scroll.baseSpeed,
   sarahFound: false,
   inBloom: false, bloomTimer: 0,
   predatorEncounters: 0, consecutivePredatorDodges: 0,
@@ -1071,7 +1079,11 @@ const CANDY_LABELS = ['orange', 'pink', 'purple', 'green', 'yellow', 'mint'];
 // ─────────────────────────────────────────────
 const _urlParams = new URLSearchParams(location.search);
 const FEATURES = {
+  // Visual cohesion + readability pass (palette, lane markers, gap glow).
   newLook: !(_urlParams.has('legacy') || _urlParams.get('v') === '1'),
+  // Gameplay-feel pass: height-locked FOV, up/back throttle, speed-scaled stakes,
+  // sawtooth spawn waves. ?legacyfeel (or ?feel=0) restores the original feel.
+  newFeel: !(_urlParams.has('legacyfeel') || _urlParams.get('feel') === '0'),
 };
 
 // Cohesive reef DECORATION palette — warm corals / pinks / purples that read as a
@@ -1092,10 +1104,22 @@ function _hazardCoralHex() {
   return p[Math.floor(Math.random() * p.length)];
 }
 
-// A/B mode badge
+// Damage scales with current speed (newFeel): going faster — by level or by
+// surging the throttle — means collisions hurt more. 1.0 at Level 1 / neutral.
+function _speedDamageMult() {
+  if (!FEATURES.newFeel) return 1;
+  return Math.min(2.2, state.effectiveSpeed / CONFIG.scroll.baseSpeed);
+}
+
+// A/B mode badge — shows LOOK (toggle V) and FEEL (toggle B)
 {
   const badge = document.getElementById('look-badge');
-  if (badge) badge.textContent = (FEATURES.newLook ? '✨ NEW LOOK' : '◻ LEGACY') + ' · press V';
+  if (badge) {
+    badge.innerHTML =
+      (FEATURES.newLook ? '✨ NEW LOOK' : '◻ LEGACY LOOK') + ' <span style="opacity:0.6">V</span>'
+      + ' &nbsp;·&nbsp; '
+      + (FEATURES.newFeel ? '🎮 NEW FEEL' : '◻ LEGACY FEEL') + ' <span style="opacity:0.6">B</span>';
+  }
 }
 
 // 3-tone cel/toon gradient map for candy materials
@@ -1144,6 +1168,10 @@ scene.background = new THREE.Color(WATER_COLOR);
 // Camera FOV is computed dynamically to guarantee the full lane area
 // is visible regardless of aspect ratio (portrait phones, etc.)
 const REQUIRED_HALF_WIDTH = CONFIG.lanes.width * 1.5 + 1.5 + 1.0; // must see at least to the wall edges
+// Narrower must-see width for the height-locked FOV safety net: just the 3 lanes
+// (outer lane centre + half a lane + a small margin), not the decorative walls.
+const LANE_SAFE_HALF_WIDTH = CONFIG.lanes.width * 1.5 + 0.6;
+const TARGET_VFOV = 60; // height-locked vertical FOV — consistent framing everywhere
 const camAngleRad = THREE.MathUtils.degToRad(CONFIG.camera.angle);
 const CAM_POS_Y = CONFIG.camera.height;
 const CAM_POS_Z = CONFIG.camera.height / Math.tan(camAngleRad);
@@ -1151,13 +1179,21 @@ const CAM_POS_Z = CONFIG.camera.height / Math.tan(camAngleRad);
 const camDistToGround = Math.sqrt(CAM_POS_Y * CAM_POS_Y + CAM_POS_Z * CAM_POS_Z);
 
 function computeFov(aspect) {
-  // Horizontal half-angle needed to see REQUIRED_HALF_WIDTH at ground distance
+  if (FEATURES.newFeel) {
+    // Height-locked: vertical FOV is constant, so Jack's size and the amount of
+    // runway ahead stay consistent across desktop and phone. Width then flexes with
+    // the aspect ratio. Safety net: if a very narrow portrait would crop the lanes,
+    // widen the vFOV just enough to keep all three lanes on screen.
+    const vHalf = THREE.MathUtils.degToRad(TARGET_VFOV) / 2;
+    const hHalfProvided = Math.atan(Math.tan(vHalf) * aspect);
+    const hHalfNeeded = Math.atan(LANE_SAFE_HALF_WIDTH / camDistToGround);
+    if (hHalfProvided >= hHalfNeeded) return TARGET_VFOV;
+    const vFovNeeded = 2 * Math.atan(Math.tan(hHalfNeeded) / aspect) * (180 / Math.PI);
+    return Math.min(95, vFovNeeded);
+  }
+  // Legacy: width-driven — fixes a horizontal world-width and derives vFOV from it.
   const hHalfAngle = Math.atan(REQUIRED_HALF_WIDTH / camDistToGround);
-  // Convert horizontal half-FOV to vertical FOV given the aspect ratio
-  // hFov = 2 * atan(tan(vFov/2) * aspect)  →  vFov = 2 * atan(tan(hHalfAngle) / aspect)
-  // But we need: if horizontal is too narrow, increase vFov
   const vFov = 2 * Math.atan(Math.tan(hHalfAngle) / aspect) * (180 / Math.PI);
-  // Clamp to a reasonable range — don't let it go too crazy on ultra-wide
   return Math.max(35, Math.min(90, vFov));
 }
 
@@ -2350,7 +2386,8 @@ function animateJack(time, dt) {
       swimSpeedBoost = Math.max(0, swimSpeedBoost - dt * 1.5);
     }
     // Base swim rate scales with game speed so Jack looks like he's working harder
-    const gameSpeedRatio = state.scrollSpeed / CONFIG.scroll.baseSpeed; // 1.0 at level 1, grows
+    // (uses effective speed so he beats his tail faster when surging the throttle)
+    const gameSpeedRatio = state.effectiveSpeed / CONFIG.scroll.baseSpeed; // 1.0 at level 1, grows
     const swimSpeed = gameSpeedRatio + swimSpeedBoost * 3.0;
     swimPhase += dt * 2.5 * swimSpeed;
 
@@ -2422,6 +2459,17 @@ function animateJack(time, dt) {
   const targetX = CONFIG.lanes.positions[state.targetLane];
   state.laneX += (targetX - state.laneX) * 8 * dt;
   jackGroup.position.x = state.laneX;
+
+  // Throttle moves Jack along Z: surge forward (up-screen, less reaction room) or
+  // ease back (down-screen, safer). newFeel only.
+  const JACK_Z_RANGE = 1.7;
+  const targetZ = FEATURES.newFeel ? -state.throttle * JACK_Z_RANGE : 0;
+  jackGroup.position.z += (targetZ - jackGroup.position.z) * 6 * dt;
+  // Pitch nose-down slightly when surging, nose-up when backing off
+  if (FEATURES.newFeel) {
+    const pitchTarget = state.throttle * 0.18;
+    jackGroup.rotation.x += (pitchTarget - jackGroup.rotation.x) * 5 * dt;
+  }
 
   // Slight tilt when changing lanes — lean INTO the turn (opposite direction)
   const tiltTarget = -(targetX - state.laneX) * 0.5;
@@ -2555,6 +2603,16 @@ function createChunkFromProps(gapLane) {
 let nextCoralSpawn = 0.5;
 let nextKrillSpawn = 0.3;
 let nextPredatorSpawn = 15;
+
+// Wave pacing (newFeel): a global intensity that ramps up slowly then eases off
+// quickly, then repeats — so krill and obstacles arrive in deliberate waves with
+// breathers between, instead of random rushes stacking on top of each other.
+const WAVE_PERIOD = 13; // seconds per wave
+function waveIntensity() {
+  const phase = (clock.getElapsedTime() % WAVE_PERIOD) / WAVE_PERIOD; // 0..1
+  // Sawtooth: slow ramp over the first ~78%, quick ease-off over the last ~22%.
+  return phase < 0.78 ? (phase / 0.78) : (1 - (phase - 0.78) / 0.22);
+}
 
 function spawnCoral(spawnZ = -50) {
   const gapLane = Math.floor(Math.random() * 3);
@@ -2973,8 +3031,8 @@ function checkCollisions() {
     if (dz > -1.2 && dz < 0.8) {
       const gapLane = obs.userData.gapLane;
       if (state.targetLane !== gapLane) {
-        state.health -= CONFIG.health.collisionDamage;
-        triggerScreenShake(0.3);
+        state.health -= CONFIG.health.collisionDamage * _speedDamageMult();
+        triggerScreenShake(0.3 * _speedDamageMult());
         obs.userData.hit = true; // mark as hit so it doesn't trigger again
         if (audioEnabled) audioManager.play('coral_hit');
         if (debugMode) console.log(`HIT coral at z=${obs.position.z.toFixed(1)}, jack z=${jackPos.z.toFixed(1)}, gap=${gapLane}, lane=${state.targetLane}`);
@@ -3028,7 +3086,7 @@ function checkCollisions() {
       jackPos.z - pred.position.z
     ).length();
     if (dist < 1.0) {
-      state.health -= CONFIG.health.predatorDamage;
+      state.health -= CONFIG.health.predatorDamage * _speedDamageMult();
       triggerScreenShake(0.5);
       state.predatorEncounters++;
       state.consecutivePredatorDodges = 0;
@@ -3134,13 +3192,57 @@ function updateWinState() {
 
 function showLevelTransition(level) {
   const el = document.getElementById('level-transition');
-  let text = `LEVEL ${level}`;
-  el.textContent = text;
-  el.style.display = 'block';
+  const text = `LEVEL ${level}`;
+  el.style.transition = '';
   el.style.opacity = '1';
-  setTimeout(() => { el.style.opacity = '0'; }, 1500);
-  setTimeout(() => { el.style.display = 'none'; }, 2500);
-  el.style.transition = 'opacity 1s';
+  el.style.display = 'block';
+  el.innerHTML = '';
+
+  // Build one span per letter so each can swim independently.
+  const letters = [];
+  for (const ch of text) {
+    const span = document.createElement('span');
+    span.textContent = ch === ' ' ? ' ' : ch;
+    el.appendChild(span);
+    letters.push(span);
+  }
+
+  const STEPS = 36;
+  const DUR = 2600;          // per-letter animation length (ms)
+  const STAGGER = 70;        // delay between letters swimming in (ms)
+  const easeOut = e => 1 - Math.pow(1 - e, 3);
+  const easeIn = e => e * e * e;
+  const offX = Math.max(window.innerWidth * 0.7, 360);
+
+  letters.forEach((span, i) => {
+    const frames = [];
+    for (let s = 0; s <= STEPS; s++) {
+      const p = s / STEPS; // 0..1
+      let x, opacity;
+      if (p < 0.26) {            // swim IN from the left
+        const e = easeOut(p / 0.26);
+        x = -offX * (1 - e);
+        opacity = e;
+      } else if (p > 0.76) {     // wibble OUT to the right
+        const e = easeIn((p - 0.76) / 0.24);
+        x = offX * e;
+        opacity = 1 - e;
+      } else {                   // bob about in place
+        x = 0; opacity = 1;
+      }
+      // Sine bob + tilt, phase-offset per letter so the word ripples like a wave.
+      const wob = Math.sin(p * Math.PI * 4 + i * 0.7);
+      const y = wob * 16;
+      const rot = wob * 7;
+      frames.push({ transform: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${rot.toFixed(1)}deg)`, opacity });
+    }
+    span.animate(frames, { duration: DUR, delay: i * STAGGER, easing: 'linear', fill: 'both' });
+  });
+
+  // Hide once the last letter has wibbled away.
+  const total = DUR + letters.length * STAGGER + 150;
+  clearTimeout(showLevelTransition._t);
+  showLevelTransition._t = setTimeout(() => { el.style.display = 'none'; el.innerHTML = ''; }, total);
 }
 
 // ─────────────────────────────────────────────
@@ -3325,6 +3427,7 @@ function returnToMenu() {
     level: 1, distance: 0, score: 0, krillCount: 0,
     lastEatTime: performance.now() / 1000, timeSinceEat: 0,
     scrollSpeed: CONFIG.scroll.baseSpeed,
+  throttle: 0, effectiveSpeed: CONFIG.scroll.baseSpeed,
     sarahFound: false,
     inBloom: false, bloomTimer: 0,
     predatorEncounters: 0, consecutivePredatorDodges: 0,
@@ -3371,6 +3474,7 @@ function resetGame() {
     level: 1, distance: 0, score: 0, krillCount: 0,
     lastEatTime: performance.now() / 1000, timeSinceEat: 0,
     scrollSpeed: CONFIG.scroll.baseSpeed,
+  throttle: 0, effectiveSpeed: CONFIG.scroll.baseSpeed,
     sarahFound: false,
     inBloom: false, bloomTimer: 0,
     predatorEncounters: 0, consecutivePredatorDodges: 0,
@@ -4000,6 +4104,13 @@ let touchStartX = 0;
 let touchStartY = 0;
 const SWIPE_THRESHOLD = 30;
 
+// Throttle input state (newFeel). keyThrottle = held-key target (-1/0/+1);
+// touchThrottle is a decaying impulse set by vertical swipes.
+let keyThrottle = 0;
+let touchThrottle = 0;
+let touchThrottleTimer = 0;
+const TOUCH_THROTTLE_HOLD = 0.7; // seconds a swipe-up/down sustains before easing off
+
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
   touchStartX = e.touches[0].clientX;
@@ -4012,6 +4123,7 @@ canvas.addEventListener('touchend', (e) => {
   const dx = e.changedTouches[0].clientX - touchStartX;
   const dy = e.changedTouches[0].clientY - touchStartY;
   if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal swipe → lane change
     const oldLane = state.targetLane;
     if (dx < 0 && state.targetLane > 0) state.targetLane--;
     if (dx > 0 && state.targetLane < 2) state.targetLane++;
@@ -4019,6 +4131,10 @@ canvas.addEventListener('touchend', (e) => {
       swimSpeedBoost = 1.0;
       if (audioEnabled) audioManager.play('lane_change');
     }
+  } else if (FEATURES.newFeel && Math.abs(dy) > SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx)) {
+    // Vertical swipe → throttle impulse (up = surge forward, down = ease back)
+    touchThrottle = dy < 0 ? 1 : -1;
+    touchThrottleTimer = TOUCH_THROTTLE_HOLD;
   }
 }, { passive: false });
 
@@ -4034,6 +4150,15 @@ document.addEventListener('keydown', (e) => {
     const url = new URL(location.href);
     if (FEATURES.newLook) url.searchParams.set('legacy', '1');
     else { url.searchParams.delete('legacy'); url.searchParams.delete('v'); }
+    location.href = url.toString();
+    return;
+  }
+  // B flips between the new feel and the legacy feel, reloading for A/B compare
+  if (e.key === 'b' || e.key === 'B') {
+    if (document.activeElement && document.activeElement.id === 'name-entry') return;
+    const url = new URL(location.href);
+    if (FEATURES.newFeel) url.searchParams.set('legacyfeel', '1');
+    else { url.searchParams.delete('legacyfeel'); url.searchParams.delete('feel'); }
     location.href = url.toString();
     return;
   }
@@ -4058,9 +4183,21 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowRight' || e.key === 'd') {
     if (state.targetLane < 2) state.targetLane++;
   }
+  // Throttle (newFeel): hold Up/W to surge forward, Down/S to ease back
+  if (FEATURES.newFeel) {
+    if (e.key === 'ArrowUp' || e.key === 'w') { keyThrottle = 1; e.preventDefault(); }
+    if (e.key === 'ArrowDown' || e.key === 's') { keyThrottle = -1; e.preventDefault(); }
+  }
   if (state.targetLane !== oldLane) {
     swimSpeedBoost = 1.0;
     if (audioEnabled) audioManager.play('lane_change');
+  }
+});
+
+// Release throttle keys → back to neutral
+document.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'ArrowDown' || e.key === 's') {
+    keyThrottle = 0;
   }
 });
 
@@ -4350,6 +4487,18 @@ function update(time) {
   const dt = Math.min(clock.getDelta(), 0.05);
   const elapsed = clock.getElapsedTime();
 
+  // ── Throttle (newFeel): hold up/swipe-up to surge, down to ease off ──
+  let _throttleTarget = 0;
+  if (state.playing && FEATURES.newFeel) {
+    if (touchThrottleTimer > 0) { touchThrottleTimer -= dt; _throttleTarget = touchThrottle; }
+    else { touchThrottle = 0; }
+    if (keyThrottle !== 0) _throttleTarget = keyThrottle; // held keys take priority
+  }
+  state.throttle += (_throttleTarget - state.throttle) * 6 * dt;
+  const THROTTLE_RANGE = 0.45; // ±45% speed swing at full throttle
+  const throttleMult = FEATURES.newFeel ? (1 + state.throttle * THROTTLE_RANGE) : 1;
+  state.effectiveSpeed = state.scrollSpeed * throttleMult;
+
   // Animate logo caustic on title screen
   updateLogoCaustic(elapsed);
 
@@ -4360,7 +4509,7 @@ function update(time) {
 
   // Animate particles — gentle drift + scroll with world when playing
   const positions = particles.geometry.attributes.position.array;
-  const pScroll = state.playing ? state.scrollSpeed * dt : 0;
+  const pScroll = state.playing ? state.effectiveSpeed * dt : 0;
   for (let i = 0; i < particleCount; i++) {
     positions[i * 3 + 1] += Math.sin(elapsed + i) * 0.002;
     positions[i * 3] += Math.cos(elapsed * 0.5 + i * 0.3) * 0.001;
@@ -4444,8 +4593,9 @@ function update(time) {
   // ── Game Logic ──
 
   // Distance & scrolling
-  state.distance += state.scrollSpeed * dt;
-  state.score += CONFIG.scoring.distanceMultiplier * state.level * dt;
+  state.distance += state.effectiveSpeed * dt;
+  // Surging is worth more points (and easing off, fewer) — reward the risk.
+  state.score += CONFIG.scoring.distanceMultiplier * state.level * throttleMult * dt;
 
   // Starvation
   state.timeSinceEat += dt;
@@ -4460,13 +4610,16 @@ function update(time) {
   // Level check
   checkLevelUp();
 
-  // Spawn management
+  // Spawn management — pace density to the wave (crest = busy, trough = breather)
+  const waveI = FEATURES.newFeel ? waveIntensity() : 0;
   nextCoralSpawn -= dt;
   if (nextCoralSpawn <= 0) {
     spawnCoral();
     nextCoralSpawn = CONFIG.spawn.coralInterval + (Math.random() - 0.5) * CONFIG.spawn.coralVariance * 2;
     // Scale with level
     nextCoralSpawn *= Math.max(0.5, 1 - state.level * 0.03);
+    // Wave pacing: dense at the crest, sparse in the trough.
+    if (FEATURES.newFeel) nextCoralSpawn *= (1.55 - 0.95 * waveI);
     // Gentle on-ramp: the spec wants Levels 1-2 to be an open, sparse reef. Stretch
     // the gaps early so first-time players can learn to read lanes before it tightens.
     if (FEATURES.newLook) {
@@ -4479,6 +4632,8 @@ function update(time) {
   if (nextKrillSpawn <= 0) {
     spawnKrill();
     nextKrillSpawn = CONFIG.spawn.krillInterval + (Math.random() - 0.5) * CONFIG.spawn.krillVariance * 2;
+    // Wave pacing: krill arrive in feeding flurries on the crest, thin out in the trough.
+    if (FEATURES.newFeel) nextKrillSpawn *= (1.5 - 1.05 * waveI);
   }
 
   nextPredatorSpawn -= dt;
@@ -4518,7 +4673,7 @@ function update(time) {
 
   // Move objects toward Jack (world scrolls) — faster during bloom
   const bloomSpeedMult = state.inBloom ? 1.6 : 1.0;
-  const scrollDelta = state.scrollSpeed * bloomSpeedMult * dt;
+  const scrollDelta = state.effectiveSpeed * bloomSpeedMult * dt;
 
   // Drive caustics scroll so they move with the ground
   jackCausticsUniforms.uScrollZ.value += scrollDelta;
