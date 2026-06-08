@@ -1625,9 +1625,10 @@ floor.position.y = -1.5;
 scene.add(floor);
 
 // ── LANE FRAMING ──────────────────────────────
-// Two faint glowing strips along the lane dividers so the player can always read
-// the three lanes (spec: "lanes are visually distinct"). Static in X, long in Z so
-// they're always visible; subtle enough not to fight the reef. newLook only.
+// Two very faint strips along the lane dividers so the player can read the three
+// lanes (spec: "lanes are visually distinct"). They undulate gently like ribbons
+// drifting in the current so they feel natural, not like hard UI lines. newLook only.
+const laneStrips = [];
 if (FEATURES.newLook) {
   const laneStripTex = (() => {
     const c = document.createElement('canvas'); c.width = 8; c.height = 256;
@@ -1640,17 +1641,24 @@ if (FEATURES.newLook) {
     return new THREE.CanvasTexture(c);
   })();
   const laneW = CONFIG.lanes.width;
+  let stripPhase = 0;
   // Dividers sit halfway between adjacent lane centres.
   for (const dx of [-laneW / 2, laneW / 2]) {
-    const stripGeo = new THREE.PlaneGeometry(0.12, 70);
+    // Segmented along its length so it can ripple per-vertex.
+    const stripGeo = new THREE.PlaneGeometry(0.14, 70, 1, 48);
     const stripMat = new THREE.MeshBasicMaterial({
-      map: laneStripTex, transparent: true, opacity: 0.35,
+      map: laneStripTex, transparent: true, opacity: 0.1,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
     });
     const strip = new THREE.Mesh(stripGeo, stripMat);
     strip.rotation.x = -Math.PI / 2;
     strip.position.set(dx, -1.47, -20);
+    // Cache base X of every vertex so the wiggle is a clean offset each frame.
+    strip.userData.baseX = Float32Array.from(stripGeo.attributes.position.array.filter((_, i) => i % 3 === 0));
+    strip.userData.phase = stripPhase;
+    stripPhase += Math.PI; // the two dividers sway out of phase
     scene.add(strip);
+    laneStrips.push(strip);
   }
 }
 
@@ -3297,7 +3305,10 @@ function showDeathScreen() {
   } else {
     el.classList.remove('sarah-found');
     if (lastPredatorName) {
-      document.getElementById('death-title').textContent = `${lastPredatorName} got you.`;
+      // Named-predator mythology retired until better predator models land.
+      // Re-enable this line to bring the names back ("Needlenose got you."):
+      // document.getElementById('death-title').textContent = `${lastPredatorName} got you.`;
+      document.getElementById('death-title').textContent = 'You got eaten.';
     } else {
       document.getElementById('death-title').textContent = 'Jack is lost.';
     }
@@ -4502,6 +4513,18 @@ function update(time) {
   const THROTTLE_RANGE = 0.45; // forward = +45% speed, back = −45%
   const throttleMult = FEATURES.newFeel ? (1 + state.throttle * THROTTLE_RANGE) : 1;
   state.effectiveSpeed = state.scrollSpeed * throttleMult;
+
+  // Lane dividers undulate gently like ribbons drifting in the current
+  for (const strip of laneStrips) {
+    const arr = strip.geometry.attributes.position.array;
+    const baseX = strip.userData.baseX;
+    const ph = strip.userData.phase;
+    for (let i = 0; i < baseX.length; i++) {
+      const y = arr[i * 3 + 1]; // position along the strip's length
+      arr[i * 3] = baseX[i] + Math.sin(y * 0.18 + elapsed * 1.4 + ph) * 0.22;
+    }
+    strip.geometry.attributes.position.needsUpdate = true;
+  }
 
   // Animate logo caustic on title screen
   updateLogoCaustic(elapsed);
