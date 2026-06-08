@@ -1041,7 +1041,7 @@ let state = {
   level: 1, distance: 0, score: 0, krillCount: 0,
   lastEatTime: 0, timeSinceEat: 0,
   scrollSpeed: CONFIG.scroll.baseSpeed,
-  throttle: 0, effectiveSpeed: CONFIG.scroll.baseSpeed,
+  zRow: 1, throttle: 0, effectiveSpeed: CONFIG.scroll.baseSpeed,
   sarahFound: false,
   inBloom: false, bloomTimer: 0,
   predatorEncounters: 0, consecutivePredatorDodges: 0,
@@ -2460,11 +2460,11 @@ function animateJack(time, dt) {
   state.laneX += (targetX - state.laneX) * 8 * dt;
   jackGroup.position.x = state.laneX;
 
-  // Throttle moves Jack along Z: surge forward (up-screen, less reaction room) or
-  // ease back (down-screen, safer). newFeel only.
-  const JACK_Z_RANGE = 1.7;
+  // Forward/back rows move Jack along Z: FORWARD rides up-screen toward the reef
+  // (less reaction room), BACK drifts toward the bottom (safer). newFeel only.
+  const JACK_Z_RANGE = 2.0; // distance between adjacent rows, in world units
   const targetZ = FEATURES.newFeel ? -state.throttle * JACK_Z_RANGE : 0;
-  jackGroup.position.z += (targetZ - jackGroup.position.z) * 6 * dt;
+  jackGroup.position.z += (targetZ - jackGroup.position.z) * 7 * dt;
   // Pitch nose-down slightly when surging, nose-up when backing off
   if (FEATURES.newFeel) {
     const pitchTarget = state.throttle * 0.18;
@@ -3427,7 +3427,7 @@ function returnToMenu() {
     level: 1, distance: 0, score: 0, krillCount: 0,
     lastEatTime: performance.now() / 1000, timeSinceEat: 0,
     scrollSpeed: CONFIG.scroll.baseSpeed,
-  throttle: 0, effectiveSpeed: CONFIG.scroll.baseSpeed,
+  zRow: 1, throttle: 0, effectiveSpeed: CONFIG.scroll.baseSpeed,
     sarahFound: false,
     inBloom: false, bloomTimer: 0,
     predatorEncounters: 0, consecutivePredatorDodges: 0,
@@ -3474,7 +3474,7 @@ function resetGame() {
     level: 1, distance: 0, score: 0, krillCount: 0,
     lastEatTime: performance.now() / 1000, timeSinceEat: 0,
     scrollSpeed: CONFIG.scroll.baseSpeed,
-  throttle: 0, effectiveSpeed: CONFIG.scroll.baseSpeed,
+  zRow: 1, throttle: 0, effectiveSpeed: CONFIG.scroll.baseSpeed,
     sarahFound: false,
     inBloom: false, bloomTimer: 0,
     predatorEncounters: 0, consecutivePredatorDodges: 0,
@@ -4104,12 +4104,20 @@ let touchStartX = 0;
 let touchStartY = 0;
 const SWIPE_THRESHOLD = 30;
 
-// Throttle input state (newFeel). keyThrottle = held-key target (-1/0/+1);
-// touchThrottle is a decaying impulse set by vertical swipes.
-let keyThrottle = 0;
-let touchThrottle = 0;
-let touchThrottleTimer = 0;
-const TOUCH_THROTTLE_HOLD = 0.7; // seconds a swipe-up/down sustains before easing off
+// Forward/back position (newFeel): three discrete rows like vertical lanes.
+//   row 0 = BACK    (drifts toward the bottom of the screen, slower, safer)
+//   row 1 = REGULAR (resting position, normal speed)
+//   row 2 = FORWARD (rides up the screen toward the reef, faster, riskier)
+// Up/W or swipe-up steps toward FORWARD; Down/S or swipe-down steps toward BACK.
+function stepZRow(dir) {
+  if (!FEATURES.newFeel || !state.playing) return;
+  const next = Math.max(0, Math.min(2, state.zRow + dir));
+  if (next !== state.zRow) {
+    state.zRow = next;
+    swimSpeedBoost = Math.max(swimSpeedBoost, 0.6);
+    if (audioEnabled) audioManager.play('lane_change');
+  }
+}
 
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
@@ -4131,10 +4139,9 @@ canvas.addEventListener('touchend', (e) => {
       swimSpeedBoost = 1.0;
       if (audioEnabled) audioManager.play('lane_change');
     }
-  } else if (FEATURES.newFeel && Math.abs(dy) > SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx)) {
-    // Vertical swipe → throttle impulse (up = surge forward, down = ease back)
-    touchThrottle = dy < 0 ? 1 : -1;
-    touchThrottleTimer = TOUCH_THROTTLE_HOLD;
+  } else if (Math.abs(dy) > SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx)) {
+    // Vertical swipe → step a forward/back row (up = forward, down = back)
+    stepZRow(dy < 0 ? 1 : -1);
   }
 }, { passive: false });
 
@@ -4183,21 +4190,15 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowRight' || e.key === 'd') {
     if (state.targetLane < 2) state.targetLane++;
   }
-  // Throttle (newFeel): hold Up/W to surge forward, Down/S to ease back
-  if (FEATURES.newFeel) {
-    if (e.key === 'ArrowUp' || e.key === 'w') { keyThrottle = 1; e.preventDefault(); }
-    if (e.key === 'ArrowDown' || e.key === 's') { keyThrottle = -1; e.preventDefault(); }
+  // Forward/back rows (newFeel): Up/W steps forward, Down/S steps back. Ignore
+  // auto-repeat so a held key steps one row at a time, not continuously.
+  if (!e.repeat) {
+    if (e.key === 'ArrowUp' || e.key === 'w') { stepZRow(1); e.preventDefault(); }
+    if (e.key === 'ArrowDown' || e.key === 's') { stepZRow(-1); e.preventDefault(); }
   }
   if (state.targetLane !== oldLane) {
     swimSpeedBoost = 1.0;
     if (audioEnabled) audioManager.play('lane_change');
-  }
-});
-
-// Release throttle keys → back to neutral
-document.addEventListener('keyup', (e) => {
-  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'ArrowDown' || e.key === 's') {
-    keyThrottle = 0;
   }
 });
 
@@ -4487,15 +4488,13 @@ function update(time) {
   const dt = Math.min(clock.getDelta(), 0.05);
   const elapsed = clock.getElapsedTime();
 
-  // ── Throttle (newFeel): hold up/swipe-up to surge, down to ease off ──
-  let _throttleTarget = 0;
-  if (state.playing && FEATURES.newFeel) {
-    if (touchThrottleTimer > 0) { touchThrottleTimer -= dt; _throttleTarget = touchThrottle; }
-    else { touchThrottle = 0; }
-    if (keyThrottle !== 0) _throttleTarget = keyThrottle; // held keys take priority
-  }
-  state.throttle += (_throttleTarget - state.throttle) * 6 * dt;
-  const THROTTLE_RANGE = 0.45; // ±45% speed swing at full throttle
+  // ── Forward/back rows (newFeel): glide toward the current row's throttle ──
+  // row 0/1/2 → throttle -1/0/+1 (back / regular / forward), smoothed for a
+  // gentle glide between the three positions.
+  if (!state.playing) state.zRow = 1;
+  const _throttleTarget = (state.playing && FEATURES.newFeel) ? (state.zRow - 1) : 0;
+  state.throttle += (_throttleTarget - state.throttle) * 7 * dt;
+  const THROTTLE_RANGE = 0.45; // forward = +45% speed, back = −45%
   const throttleMult = FEATURES.newFeel ? (1 + state.throttle * THROTTLE_RANGE) : 1;
   state.effectiveSpeed = state.scrollSpeed * throttleMult;
 
