@@ -2933,14 +2933,9 @@ function spawnPredator() {
   scene.add(pred);
   predators.push(pred);
 
-  // Shadow telegraph — growing shadow before predator arrives
-  const shadowGeo = new THREE.PlaneGeometry(1.5, 2);
-  const shadowMat = new THREE.MeshBasicMaterial({
-    color: 0x000000, transparent: true, opacity: 0.2, depthWrite: false
-  });
-  const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.set(CONFIG.lanes.positions[startLane], -1.45, -40);
+  // Shadow telegraph — soft round blob (like Jack's), grows as the predator nears
+  const shadow = createShadowBlob(1.6);
+  shadow.position.set(CONFIG.lanes.positions[startLane], shadow.position.y, -40);
   scene.add(shadow);
   pred.userData.shadow = shadow;
 }
