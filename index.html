@@ -1792,13 +1792,45 @@ loadProp('./rock-1.glb', 'rock1', 1.2);
 // Predator "big fish" model — loaded once, cloned per spawn (falls back to the
 // procedural placeholder until it arrives / if it fails to load).
 let predatorTemplate = null;
-loader.load('./big-fish.glb', (gltf) => {
+// Pick the vertex-colour layer that actually carries colour. Some exports leave
+// COLOR_0 flat white and put the real paint in a second layer (COLOR_1 -> color_1),
+// so we scan every colour-ish attribute and prefer the first one that varies.
+function _pickVertexColourAttr(geo) {
+  if (!geo || !geo.attributes) return null;
+  let fallback = null;
+  for (const name of Object.keys(geo.attributes)) {
+    if (!/^color/i.test(name)) continue;
+    const a = geo.attributes[name];
+    if (a.itemSize < 3) continue;
+    const arr = a.array, n = a.itemSize;
+    const thr = arr.BYTES_PER_ELEMENT === 1 ? 2 : 0.01; // ubyte 0–255 vs float 0–1
+    let varies = false;
+    for (let i = n; i < arr.length; i++) {
+      if (Math.abs(arr[i] - arr[i % n]) > thr) { varies = true; break; }
+    }
+    if (varies) return a;          // a layer with real colour wins outright
+    if (!fallback) fallback = a;   // else remember a flat layer
+  }
+  return fallback;
+}
+
+loader.load('./big-fish-2.glb', (gltf) => {
   const model = gltf.scene;
   model.traverse((child) => {
     if (child.isMesh && child.material) {
       child.material.side = THREE.DoubleSide;
-      // Brighten very dark materials so it reads underwater
-      if (child.material.color) {
+      const colourAttr = _pickVertexColourAttr(child.geometry);
+      if (colourAttr) {
+        // Honour the baked vertex colours: route the chosen layer into `color`,
+        // enable vertex colours, and keep the base colour white so it doesn't tint them.
+        if (child.geometry.attributes.color !== colourAttr) {
+          child.geometry.setAttribute('color', colourAttr);
+        }
+        child.material.vertexColors = true;
+        if (child.material.color) child.material.color.setHex(0xffffff);
+        child.material.needsUpdate = true;
+      } else if (child.material.color) {
+        // No vertex colours — brighten very dark base materials so it reads underwater
         const hsl = {};
         child.material.color.getHSL(hsl);
         if (hsl.l < 0.25) child.material.color.setHSL(hsl.h, hsl.s, 0.4);
