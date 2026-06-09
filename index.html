@@ -339,6 +339,16 @@ html, body {
 .promo-btn svg {
   width: 14px; height: 14px;
 }
+/* Circular image badge buttons (Stan film / read the book) */
+.promo-img-btn {
+  display: block; padding: 0; background: none; border: none; cursor: pointer;
+  text-decoration: none; line-height: 0;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.promo-img-btn:hover { transform: scale(1.06); filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); }
+.promo-img-btn:active { transform: scale(0.98); }
+.promo-img-btn img { width: 66px; height: 66px; border-radius: 50%; display: block; }
 
 /* Name entry field */
 #name-entry {
@@ -407,13 +417,11 @@ html, body {
   </div>
   <button class="start-btn" id="highscores-btn" style="margin-top: 16px; padding: 12px 32px; font-size: 14px;">HIGH SCORES</button>
   <div class="promo-links">
-    <a href="https://whalesharkjack.com" target="_blank" class="promo-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      Watch the Film
+    <a href="https://whalesharkjack.com" target="_blank" class="promo-img-btn" aria-label="Now an original film — only on Stan">
+      <img src="stan-logo.webp" alt="Now an Original Film — only on Stan" width="66" height="66">
     </a>
-    <a href="https://www.penguin.com.au/books/whale-shark-jack-9781761621420" target="_blank" class="promo-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-      Get the Book
+    <a href="https://www.penguin.com.au/books/whale-shark-jack-9781761621420" target="_blank" class="promo-img-btn" aria-label="Read the book here">
+      <img src="read-the-book.webp" alt="Read the book here" width="66" height="66">
     </a>
   </div>
 </div>
@@ -436,13 +444,11 @@ html, body {
   <div class="goals" id="death-goals"></div>
   <div id="death-leaderboard" style="margin-top:12px;width:80%;max-width:300px;"></div>
   <div class="promo-links" style="margin-top: 16px;">
-    <a href="https://whalesharkjack.com" target="_blank" class="promo-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      Watch the Film
+    <a href="https://whalesharkjack.com" target="_blank" class="promo-img-btn" aria-label="Now an original film — only on Stan">
+      <img src="stan-logo.webp" alt="Now an Original Film — only on Stan" width="66" height="66">
     </a>
-    <a href="https://www.penguin.com.au/books/whale-shark-jack-9781761621420" target="_blank" class="promo-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-      Get the Book
+    <a href="https://www.penguin.com.au/books/whale-shark-jack-9781761621420" target="_blank" class="promo-img-btn" aria-label="Read the book here">
+      <img src="read-the-book.webp" alt="Read the book here" width="66" height="66">
     </a>
   </div>
   <button class="restart-btn" id="restart-btn">TRY AGAIN</button>
@@ -2851,7 +2857,7 @@ function spawnFallbackBranch() {
 // ─────────────────────────────────────────────
 // Base yaw applied to the big-fish model so it faces along the patrol (X) axis.
 // Tweak if the model points the wrong way once loaded.
-const PREDATOR_BASE_YAW = Math.PI / 2;
+const PREDATOR_BASE_YAW = -Math.PI / 2;
 
 function createPredator(fast = false) {
   const group = new THREE.Group();
