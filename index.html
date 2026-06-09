@@ -1789,6 +1789,27 @@ loadProp('./coral-1.glb', 'coral1', 1.5);
 loadProp('./coral-2.glb', 'coral2', 2.0);
 loadProp('./rock-1.glb', 'rock1', 1.2);
 
+// Predator "big fish" model — loaded once, cloned per spawn (falls back to the
+// procedural placeholder until it arrives / if it fails to load).
+let predatorTemplate = null;
+loader.load('./big-fish.glb', (gltf) => {
+  const model = gltf.scene;
+  model.traverse((child) => {
+    if (child.isMesh && child.material) {
+      child.material.side = THREE.DoubleSide;
+      // Brighten very dark materials so it reads underwater
+      if (child.material.color) {
+        const hsl = {};
+        child.material.color.getHSL(hsl);
+        if (hsl.l < 0.25) child.material.color.setHSL(hsl.h, hsl.s, 0.4);
+      }
+      if (child.material.isMeshStandardMaterial) patchSceneMaterialWithCaustics(child.material, 0.3);
+    }
+  });
+  predatorTemplate = model;
+  console.log('Predator model loaded');
+}, undefined, (err) => console.warn('Failed to load predator model:', err));
+
 // Clone a prop with random colour tint, rotation, and scale variance
 function cloneProp(key) {
   const template = propTemplates[key];
@@ -2796,10 +2817,46 @@ function spawnFallbackBranch() {
 // ─────────────────────────────────────────────
 // PREDATORS
 // ─────────────────────────────────────────────
+// Base yaw applied to the big-fish model so it faces along the patrol (X) axis.
+// Tweak if the model points the wrong way once loaded.
+const PREDATOR_BASE_YAW = Math.PI / 2;
+
 function createPredator(fast = false) {
   const group = new THREE.Group();
 
-  // Body
+  if (predatorTemplate) {
+    // Clone the big-fish GLB (deep-clone materials so instances are independent)
+    const model = predatorTemplate.clone(true);
+    model.traverse(c => { if (c.isMesh && c.material) c.material = c.material.clone(); });
+    // Scale to a menacing size — noticeably bigger than Jack
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const s = (fast ? 3.0 : 3.8) / maxDim;
+    model.scale.setScalar(s);
+    model.position.set(-center.x * s, -center.y * s, -center.z * s);
+    model.name = 'predModel';
+    group.add(model);
+    group.userData.model = model;
+  } else {
+    createPredatorPrimitive(group, fast);
+  }
+
+  Object.assign(group.userData, {
+    type: 'predator', fast,
+    speed: fast ? 6 : 3,
+    startLane: Math.floor(Math.random() * 3),
+    patrolDir: Math.random() > 0.5 ? 1 : -1,
+    patrolTimer: 0,
+    name: getRandomPredatorName(),
+  });
+
+  return group;
+}
+
+// Procedural placeholder predator — used until the GLB loads, or if it fails.
+function createPredatorPrimitive(group, fast) {
   const bodyLen = fast ? 2 : 2.5;
   const bodyGeo = new THREE.ConeGeometry(0.4, bodyLen, 8);
   const bodyMat = new THREE.MeshStandardMaterial({
@@ -2809,7 +2866,6 @@ function createPredator(fast = false) {
   body.rotation.x = -Math.PI / 2;
   group.add(body);
 
-  // Tail
   const tailGeo = new THREE.ConeGeometry(0.35, 0.8, 4);
   const tail = new THREE.Mesh(tailGeo, bodyMat);
   tail.position.z = bodyLen / 2 + 0.2;
@@ -2817,7 +2873,6 @@ function createPredator(fast = false) {
   tail.name = 'predTail';
   group.add(tail);
 
-  // Fins
   for (let side of [-1, 1]) {
     const finGeo = new THREE.BoxGeometry(0.8, 0.05, 0.4);
     const fin = new THREE.Mesh(finGeo, bodyMat);
@@ -2825,7 +2880,6 @@ function createPredator(fast = false) {
     group.add(fin);
   }
 
-  // Eyes (menacing red glow)
   for (let side of [-1, 1]) {
     const eyeGeo = new THREE.SphereGeometry(0.06, 6, 6);
     const eyeMat = new THREE.MeshStandardMaterial({
@@ -2835,17 +2889,6 @@ function createPredator(fast = false) {
     eye.position.set(side * 0.2, 0.1, -bodyLen / 2 + 0.3);
     group.add(eye);
   }
-
-  group.userData = {
-    type: 'predator', fast,
-    speed: fast ? 6 : 3,
-    startLane: Math.floor(Math.random() * 3),
-    patrolDir: Math.random() > 0.5 ? 1 : -1,
-    patrolTimer: 0,
-    name: getRandomPredatorName(),
-  };
-
-  return group;
 }
 
 const PREDATOR_NAMES = ['Scarface', 'Old Teeth', 'Shadowfin', 'The Grey', 'Needlenose', 'Blacktip', 'Razorjaw'];
@@ -4775,9 +4818,17 @@ function update(time) {
     if (pred.position.x > CONFIG.lanes.positions[2] + 0.5) pred.userData.patrolDir = -1;
     if (pred.position.x < CONFIG.lanes.positions[0] - 0.5) pred.userData.patrolDir = 1;
 
-    // Animate tail
-    const tail = pred.getObjectByName('predTail');
-    if (tail) tail.rotation.y = Math.sin(elapsed * 4) * 0.3;
+    // Animate: GLB model faces its patrol direction with a gentle swim wiggle;
+    // placeholder just wiggles its tail.
+    const model = pred.userData.model;
+    if (model) {
+      const faceYaw = PREDATOR_BASE_YAW + (pred.userData.patrolDir > 0 ? 0 : Math.PI);
+      model.rotation.y = faceYaw + Math.sin(elapsed * 6) * 0.08; // body sway
+      model.rotation.z = Math.sin(elapsed * 5 + pred.position.x) * 0.06; // roll
+    } else {
+      const tail = pred.getObjectByName('predTail');
+      if (tail) tail.rotation.y = Math.sin(elapsed * 4) * 0.3;
+    }
 
     // Shadow follows
     if (pred.userData.shadow) {
