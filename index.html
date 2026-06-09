@@ -339,16 +339,21 @@ html, body {
 .promo-btn svg {
   width: 14px; height: 14px;
 }
-/* Circular image badge buttons (Stan film / read the book) */
+/* Circular image badge buttons (Stan film / read the book) — pinned to the
+   bottom corners of the screen so they don't overlap Jack in attract mode. */
+.promo-links { margin: 0; }
 .promo-img-btn {
-  display: block; padding: 0; background: none; border: none; cursor: pointer;
+  position: absolute; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 6; padding: 0; background: none; border: none; cursor: pointer;
   text-decoration: none; line-height: 0;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.3));
   transition: transform 0.2s ease, filter 0.2s ease;
 }
-.promo-img-btn:hover { transform: scale(1.06); filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); }
-.promo-img-btn:active { transform: scale(0.98); }
-.promo-img-btn img { width: 66px; height: 66px; border-radius: 50%; display: block; }
+.promo-links .promo-img-btn:first-child  { left: 18px; }
+.promo-links .promo-img-btn:last-child   { right: 18px; }
+.promo-img-btn:hover { transform: scale(1.07); filter: drop-shadow(0 5px 12px rgba(0,0,0,0.4)); }
+.promo-img-btn:active { transform: scale(0.97); }
+.promo-img-btn img { width: 96px; height: 96px; border-radius: 50%; display: block; }
 
 /* Name entry field */
 #name-entry {
@@ -389,9 +394,6 @@ html, body {
 <body>
 
 <canvas id="game-canvas"></canvas>
-
-<!-- A/B look badge — shows which visual build is active; press V to flip -->
-<div id="look-badge" style="display:none;position:fixed;left:10px;bottom:10px;z-index:60;font:600 11px/1.4 system-ui,sans-serif;letter-spacing:0.04em;color:rgba(255,255,255,0.85);background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:5px 9px;pointer-events:none;user-select:none;backdrop-filter:blur(4px);"></div>
 
 <!-- HUD -->
 <div id="hud">
@@ -1117,21 +1119,6 @@ function _speedDamageMult() {
   return Math.min(2.2, state.effectiveSpeed / CONFIG.scroll.baseSpeed);
 }
 
-// A/B mode badge — hidden in the live build. Only shown when actively comparing,
-// i.e. a look/feel/compare URL param is present (also true after pressing V or B,
-// which reload with a param). Players never see it; the V/B hotkeys still work.
-{
-  const badge = document.getElementById('look-badge');
-  const comparing = ['legacy', 'legacyfeel', 'v', 'feel', 'compare']
-    .some(p => _urlParams.has(p));
-  if (badge && comparing) {
-    badge.style.display = 'block';
-    badge.innerHTML =
-      (FEATURES.newLook ? '✨ NEW LOOK' : '◻ LEGACY LOOK') + ' <span style="opacity:0.6">V</span>'
-      + ' &nbsp;·&nbsp; '
-      + (FEATURES.newFeel ? '🎮 NEW FEEL' : '◻ LEGACY FEEL') + ' <span style="opacity:0.6">B</span>';
-  }
-}
 
 // 3-tone cel/toon gradient map for candy materials
 // Creates a tiny 3-pixel RGBA texture: dark → mid → bright, stepped via NearestFilter
